@@ -1,0 +1,354 @@
+import { useMemo } from "react";
+import { getRcaValue } from "./lib/columns.js";
+import { ISSUE_KIND_LABELS } from "./lib/analytics.js";
+import { downloadCsv } from "./lib/csvExport.js";
+
+export const DATA_TABLE_PAGE_SIZE = 100;
+
+function DownloadIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M12 3v12m0 0l4-4m-4 4L8 11" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5 15v4a2 2 0 002 2h10a2 2 0 002-2v-4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function zoneBadgeClassDark(zone) {
+  const z = String(zone ?? "").toLowerCase();
+  if (z.includes("north")) return "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30";
+  if (z.includes("east")) return "bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/30";
+  if (z.includes("west")) return "bg-violet-500/15 text-violet-200 ring-1 ring-violet-400/30";
+  if (z.includes("south")) return "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/30";
+  return "bg-slate-600/30 text-slate-300 ring-1 ring-slate-500/40";
+}
+
+function rcaBadgeClassDark(kind) {
+  if (kind === "closed") return "bg-slate-600/40 text-slate-200 ring-1 ring-slate-500/50";
+  if (kind === "partial_bagging")
+    return "bg-orange-500/15 text-orange-200 ring-1 ring-orange-400/35";
+  if (kind === "multiple_bagging")
+    return "bg-amber-500/15 text-amber-100 ring-1 ring-amber-400/35";
+  if (kind === "lm_fraud") return "bg-red-500/15 text-red-200 ring-1 ring-red-400/35";
+  if (kind === "camera_issues")
+    return "bg-violet-500/15 text-violet-200 ring-1 ring-violet-400/35";
+  if (kind === "unable_to_validate")
+    return "bg-yellow-500/15 text-yellow-100 ring-1 ring-yellow-400/35";
+  if (kind === "proper_bagging")
+    return "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/35";
+  return "bg-slate-600/30 text-slate-300 ring-1 ring-slate-500/40";
+}
+
+function cctvShowsIcon(raw) {
+  if (raw == null || String(raw).trim() === "") return false;
+  const s = String(raw).trim().toLowerCase();
+  if (["no", "n", "false", "0", "-", "na", "none", "n/a"].includes(s)) return false;
+  return true;
+}
+
+function stripExportRows(rows, fields) {
+  return rows.map((r) => {
+    const o = {};
+    for (const f of fields) o[f] = r[f] ?? "";
+    return o;
+  });
+}
+
+function CameraIcon({ className = "h-5 w-5" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path
+        d="M4 8h4l2-2h4l2 2h4v10H4V8z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  );
+}
+
+export function DataTableTab({
+  hasData,
+  colMapSafe,
+  fields,
+  exportFields,
+  search,
+  setSearch,
+  zoneFilter,
+  setZoneFilter,
+  rcaFilter,
+  setRcaFilter,
+  categoryFilter,
+  setCategoryFilter,
+  page,
+  setPage,
+  zoneOptions,
+  rcaOptions,
+  categoryKinds,
+  filteredRows,
+  onExportFiltered,
+}) {
+  const pageRows = useMemo(() => {
+    const start = page * DATA_TABLE_PAGE_SIZE;
+    return filteredRows.slice(start, start + DATA_TABLE_PAGE_SIZE);
+  }, [filteredRows, page]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / DATA_TABLE_PAGE_SIZE));
+
+  const rangeStart = filteredRows.length === 0 ? 0 : page * DATA_TABLE_PAGE_SIZE + 1;
+  const rangeEnd = Math.min((page + 1) * DATA_TABLE_PAGE_SIZE, filteredRows.length);
+
+  const selectClass =
+    "min-w-[8.5rem] rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  const exportRow = (r) => {
+    downloadCsv("data-table-row.csv", stripExportRows([r], exportFields), exportFields);
+  };
+
+  if (!hasData) {
+    return (
+      <div className="mx-auto max-w-lg rounded-xl border border-slate-800 bg-slate-900/50 px-6 py-16 text-center">
+        <p className="text-lg font-medium text-slate-200">No data loaded</p>
+        <p className="mt-2 text-sm text-slate-500">
+          Use the upload button in the header to import a CSV file.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-4 px-4 pb-16 pt-6 sm:px-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="relative min-w-0 flex-1">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search manifests, hubs…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            aria-label="Search manifests and hubs"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+            <span className="sr-only sm:not-sr-only">Zone</span>
+            <select
+              value={zoneFilter}
+              onChange={(e) => setZoneFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Filter by zone"
+            >
+              <option value="all">All</option>
+              {zoneOptions.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+            <span className="sr-only sm:not-sr-only">RCA</span>
+            <select
+              value={rcaFilter}
+              onChange={(e) => setRcaFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Filter by RCA"
+            >
+              <option value="all">All</option>
+              {rcaOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r.length > 56 ? `${r.slice(0, 54)}…` : r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+            <span className="sr-only sm:not-sr-only">Category</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className={selectClass}
+              aria-label="Filter by category"
+            >
+              <option value="all">All</option>
+              {categoryKinds.map((k) => (
+                <option key={k} value={k}>
+                  {ISSUE_KIND_LABELS[k] ?? k}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 shadow-xl shadow-black/20">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm text-slate-200">
+            <thead>
+              <tr className="border-b border-slate-800 bg-slate-900/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {colMapSafe.manifest ? (
+                  <th className="whitespace-nowrap px-4 py-3">Manifest</th>
+                ) : null}
+                {colMapSafe.zone ? <th className="px-4 py-3">Zone</th> : null}
+                {colMapSafe.hub ? <th className="px-4 py-3">Hub</th> : null}
+                <th className="px-4 py-3">RCA</th>
+                {colMapSafe.open ? <th className="px-4 py-3">Open</th> : null}
+                {colMapSafe.cctv ? <th className="px-4 py-3">CCTV</th> : null}
+                <th className="w-12 px-4 py-3" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={10}
+                    className="px-4 py-14 text-center text-slate-500"
+                  >
+                    No records match your filters.
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((r, idx) => (
+                  <tr
+                    key={
+                      colMapSafe.manifest
+                        ? `${String(r[colMapSafe.manifest] ?? idx)}-${page}-${idx}`
+                        : `${page}-${idx}-${String(r[colMapSafe.hub] ?? "")}`
+                    }
+                    className="cursor-pointer border-b border-slate-800/80 transition hover:bg-slate-800/40"
+                    onClick={() => exportRow(r)}
+                  >
+                    {colMapSafe.manifest ? (
+                      <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-300">
+                        {r[colMapSafe.manifest] ?? "—"}
+                      </td>
+                    ) : null}
+                    {colMapSafe.zone ? (
+                      <td className="px-4 py-2.5">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${zoneBadgeClassDark(
+                            r[colMapSafe.zone]
+                          )}`}
+                        >
+                          {r[colMapSafe.zone] ?? "—"}
+                        </span>
+                      </td>
+                    ) : null}
+                    {colMapSafe.hub ? (
+                      <td className="max-w-[14rem] truncate px-4 py-2.5 text-slate-300">
+                        {r[colMapSafe.hub] ?? "—"}
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`inline-flex max-w-[16rem] truncate rounded-full px-2.5 py-0.5 text-xs font-semibold ${rcaBadgeClassDark(
+                          r.__kind
+                        )}`}
+                        title={getRcaValue(r, colMapSafe, fields)}
+                      >
+                        {getRcaValue(r, colMapSafe, fields) || "—"}
+                      </span>
+                    </td>
+                    {colMapSafe.open ? (
+                      <td className="px-4 py-2.5 font-semibold tabular-nums text-red-400">
+                        {r[colMapSafe.open] ?? "—"}
+                      </td>
+                    ) : null}
+                    {colMapSafe.cctv ? (
+                      <td className="px-4 py-2.5 text-blue-400">
+                        {cctvShowsIcon(r[colMapSafe.cctv]) ? (
+                          <CameraIcon className="h-5 w-5" aria-label="CCTV available" />
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-700 p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                        title="Download row"
+                        aria-label="Download row CSV"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          exportRow(r);
+                        }}
+                      >
+                        <DownloadIcon className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-slate-800/60 pt-4 text-sm text-slate-500">
+        <p>
+          {filteredRows.length === 0
+            ? "Showing 0 of 0 records"
+            : `Showing ${rangeStart}–${rangeEnd} of ${filteredRows.length.toLocaleString()} records`}
+        </p>
+        <p className="text-slate-600">Click any row to export.</p>
+      </div>
+
+      {totalPages > 1 ? (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            disabled={page <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-35 hover:bg-slate-800"
+          >
+            Previous
+          </button>
+          <span className="px-2 text-sm text-slate-500">
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages - 1}
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-35 hover:bg-slate-800"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}

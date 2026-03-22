@@ -1,0 +1,87 @@
+function norm(s) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function matches(fieldName, aliases) {
+  const n = norm(fieldName);
+  return aliases.some((a) => {
+    const an = norm(a);
+    return n === an || n.includes(an) || an.includes(n);
+  });
+}
+
+/**
+ * @param {string[]} fields
+ * @returns {{ rca: string | null; hub: string | null; zone: string | null; manifest: string | null; open: string | null; date: string | null; cctv: string | null }}
+ */
+export function detectColumns(fields) {
+  if (!fields?.length) {
+    return {
+      rca: null,
+      hub: null,
+      zone: null,
+      manifest: null,
+      open: null,
+      date: null,
+      cctv: null,
+    };
+  }
+
+  const pick = (aliases) => fields.find((f) => matches(f, aliases)) ?? null;
+
+  return {
+    rca: pick([
+      "rca",
+      "root cause",
+      "root_cause",
+      "category",
+      "issue",
+      "issue type",
+      "issue_type",
+      "status detail",
+    ]),
+    hub: pick(["hub", "location", "site", "warehouse", "center"]),
+    zone: pick(["zone", "region", "area"]),
+    manifest: pick([
+      "manifest",
+      "manifest id",
+      "awb",
+      "shipment id",
+      "id",
+      "order id",
+    ]),
+    open: pick(["open", "open count", "opens", "open issues"]),
+    date: pick([
+      "date",
+      "week",
+      "day",
+      "created",
+      "created at",
+      "created_at",
+      "reported",
+      "reported date",
+      "incident date",
+      "event date",
+      "timestamp",
+      "occurred",
+      "observation date",
+    ]),
+    cctv: pick([
+      "cctv",
+      "cctv flag",
+      "has cctv",
+      "footage",
+      "video",
+      "camera feed",
+    ]),
+  };
+}
+
+export function getRcaValue(row, colMap, fields) {
+  const key = colMap.rca ?? fields[0];
+  return row[key] != null ? String(row[key]) : "";
+}

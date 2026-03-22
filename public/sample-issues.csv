@@ -1,0 +1,31 @@
+Manifest,Hub,Zone,RCA,Open,Date
+BM-D0E58E32,DBG_Darbhanga_E,North,Partial Bagging,3,2025-03-03
+BM-A12BC901,RJT_Greenland,West,Partial Bagging,2,2025-03-03
+BM-F00D42AA,MZU_MuzaffarPur_E,East,LM Fraud,1,2025-03-03
+BM-CC9012AB,CHG_Channagiri_TH,South,Camera Issue,4,2025-03-03
+BM-77AA3344,MYS_Sidderathnagar_N,South,Partial Bagging,1,2025-03-10
+BM-40BBB222,CHG_Channagiri_TH,South,Partial Bagging,5,2025-03-10
+BM-40BBB223,BLR_HAL,South,Partial Bagging,1,2025-03-10
+BM-40BBB224,RJT_Greenland,West,Partial Bagging,2,2025-03-10
+BM-88EE1100,BLR_HAL,South,LM Fraud,1,2025-03-10
+BM-99FF7788,HX_Cuddapah,South,LM Fraud,1,2025-03-10
+BM-30AAA111,RJT_Greenland,West,Camera Issue,2,2025-03-10
+BM-30AAA112,DBG_Darbhanga_E,North,Camera Issue,1,2025-03-10
+BM-22BB5566,BLR_Rajagopalnagar,South,No Footage,2,2025-03-17
+BM-50CCC333,MZU_MuzaffarPur_E,East,Partial Bagging,1,2025-03-17
+BM-50CCC334,BHTK_Tonk_TH,North,Partial Bagging,1,2025-03-17
+BM-70EEE555,DBG_Darbhanga_E,North,LM Fraud,1,2025-03-17
+BM-CC9013AB,CHG_Channagiri_TH,South,Camera Issue,3,2025-03-17
+BM-CC9014AB,MYS_Sidderathnagar_N,South,Camera Issue,2,2025-03-17
+BM-CC9015AB,BLR_HAL,South,Camera Issue,1,2025-03-17
+BM-CC9016AB,BLR_HAL,South,Camera Issue,2,2025-03-17
+BM-10ABCDEF,BHTK_Tonk_TH,North,Proper Bagging,0,2025-03-24
+BM-20FEDCBA,DBG_Darbhanga_E,North,Offline,1,2025-03-24
+BM-60DDD444,BLR_HAL,South,No Footage,1,2025-03-24
+BM-71FFF001,RJT_Greenland,West,Partial Bagging,2,2025-03-24
+BM-71FFF002,CHG_Channagiri_TH,South,Partial Bagging,1,2025-03-24
+BM-71FFF003,MZU_MuzaffarPur_E,East,Partial Bagging,2,2025-03-24
+BM-88EE2200,BLR_HAL,South,LM Fraud,1,2025-03-24
+BM-88EE2201,HX_Cuddapah,South,LM Fraud,1,2025-03-24
+BM-30AAA211,RJT_Greenland,West,Camera Issue,1,2025-03-24
+BM-30AAA212,DBG_Darbhanga_E,North,Camera Issue,1,2025-03-24
