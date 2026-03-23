@@ -299,8 +299,12 @@ export function hasValidRcaForPocProductivity(row) {
   const rca = String(row.__rcaText ?? "").trim();
   if (!rca) return false;
   const t = rca.toLowerCase();
-  if (t.includes("not centralized") || t.includes("not centralised")) return false;
-  if (t.includes("backup issue")) return false;
+  const normalized = t
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.includes("not centralized") || normalized.includes("not centralised")) return false;
+  if (/\bbackup\b.*\bissues?\b/.test(normalized) || normalized.includes("backupissue")) return false;
   return true;
 }
 
