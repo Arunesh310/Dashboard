@@ -1516,7 +1516,7 @@ export default function App() {
                         {pocProductivityAggregates.validRca.toLocaleString()}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Denominator (excl. offline, blank, not centralized)
+                        Denominator (excl. offline, blank, not centralized, backup issue)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1598,7 +1598,8 @@ export default function App() {
                       (denominator) includes only rows that are not{" "}
                       <span className="font-medium">Offline</span>,
                       have non-blank RCA, and whose RCA does not contain{" "}
-                      <span className="font-medium">not centralized</span> (or centralised).{" "}
+                      <span className="font-medium">not centralized</span> (or centralised), or{" "}
+                      <span className="font-medium">backup issue</span>.{" "}
                       <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = valid RCA ÷
                       eligible (ratio). Week-over-week compares the latest two weeks that have valid RCA
                       volume. Based on all loaded rows.

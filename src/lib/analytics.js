@@ -292,7 +292,7 @@ export function sliceLastWeeks(series, maxWeeks) {
 
 /**
  * Valid RCA for POC productivity denominator: not Offline,
- * non-blank RCA, and RCA text does not contain not centralized/centralised.
+ * non-blank RCA, and RCA text does not contain not centralized/centralised or backup issue.
  */
 export function hasValidRcaForPocProductivity(row) {
   if (row.__kind === "closed" || row.__kind === "offline") return false;
@@ -300,6 +300,7 @@ export function hasValidRcaForPocProductivity(row) {
   if (!rca) return false;
   const t = rca.toLowerCase();
   if (t.includes("not centralized") || t.includes("not centralised")) return false;
+  if (t.includes("backup issue")) return false;
   return true;
 }
 
