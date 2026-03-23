@@ -248,7 +248,6 @@ function stripExportRows(rows, fields) {
 const HOTSPOTS_INITIAL_VISIBLE = 5;
 const POC_PRODUCTIVITY_CARD_LIMIT = 10;
 
-/** validRca ÷ eligible as ratio → display percent */
 function formatPocProductivityPercent(ratio) {
   if (ratio == null || !Number.isFinite(ratio)) return "—";
   return `${(ratio * 100).toFixed(1)}%`;
@@ -332,7 +331,6 @@ function HorizontalBarChart({ labels, values, color }) {
   return <Bar data={data} options={options} />;
 }
 
-/** For issue metrics, “up” means worsening (more cases). */
 function issueTrendPillClass(direction) {
   if (direction === "up")
     return "bg-red-50 text-red-950 ring-1 ring-red-200/90 dark:bg-red-950 dark:text-red-50 dark:ring-red-800/90";
@@ -343,7 +341,6 @@ function issueTrendPillClass(direction) {
   return "bg-slate-100 text-slate-900 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600/80";
 }
 
-/** Higher productivity % is better — invert colors vs issue trend pills. */
 function productivityTrendPillClass(direction) {
   if (direction === "up")
     return "bg-emerald-50 text-emerald-950 ring-1 ring-emerald-200/90 dark:bg-emerald-950 dark:text-emerald-50 dark:ring-emerald-800/90";
@@ -701,7 +698,6 @@ export default function App() {
     [annotated, filter, colMapSafe.hub]
   );
 
-  /** Problematic RCAs only: not proper bagging, non-blank; sorted date → Open desc. */
   const recentIssuesSorted = useMemo(() => {
     const withRca = filtered.filter((r) => {
       if (r.__kind === "proper_bagging") return false;
@@ -1022,7 +1018,7 @@ export default function App() {
         <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-3 px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="min-w-0 flex-1">
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 xs:text-lg sm:text-xl">
-              CCTV Dashboard
+              LM ODC CCTV Dashboard
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
               {isSupabaseConfigured()
@@ -1452,7 +1448,7 @@ export default function App() {
                       <span className="font-semibold text-slate-500 dark:text-slate-400">(POC)</span>
                     </span>
                     <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-500 sm:text-xs">
-                      {pocProductivityExpanded ? "Hide" : "Show"} charts & methodology
+                      {pocProductivityExpanded ? "Hide" : "Show"} charts
                     </span>
                   </span>
                 </button>
@@ -1508,9 +1504,6 @@ export default function App() {
                       <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         {formatPocProductivityPercent(pocProductivityAggregates.overallProductivityRatio)}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        (Valid RCA ÷ total eligible) × 100 — all POCs combined
-                      </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1518,9 +1511,6 @@ export default function App() {
                       </p>
                       <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {pocProductivityAggregates.totalEligible.toLocaleString()}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        All cases with a POC (numerator)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1530,9 +1520,6 @@ export default function App() {
                       <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {pocProductivityAggregates.validRca.toLocaleString()}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Denominator (excl. offline, blank, not centralized, backup issue)
-                      </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1541,28 +1528,8 @@ export default function App() {
                       <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {pocProductivityAggregates.pocCount.toLocaleString()}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        With ≥1 case assigned
-                      </p>
                     </div>
                   </div>
-
-                  <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-500">
-                    POC column:{" "}
-                    <span className="text-slate-700 dark:text-slate-300">{colMapSafe.poc}</span>
-                    {colMapSafe.date ? (
-                      <>
-                        {" "}
-                        · Date:{" "}
-                        <span className="text-slate-700 dark:text-slate-300">{colMapSafe.date}</span>
-                      </>
-                    ) : (
-                      <span className="text-amber-700 dark:text-amber-300/90">
-                        {" "}
-                        · Add a date column for weekly charts in details.
-                      </span>
-                    )}
-                  </p>
 
                   <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
                     <div className="max-h-[min(22rem,55vh)] overflow-auto">
@@ -1607,25 +1574,7 @@ export default function App() {
                     hidden={!pocProductivityExpanded}
                     className={pocProductivityExpanded ? "mt-5 border-t border-slate-200/90 pt-5 dark:border-slate-700/60" : "hidden"}
                   >
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Eligible</span> counts every row
-                      with a POC. <span className="font-medium text-slate-800 dark:text-slate-200">Valid RCA</span>{" "}
-                      (denominator) includes only rows that are not{" "}
-                      <span className="font-medium">Offline</span>,
-                      have non-blank RCA, and whose RCA does not contain{" "}
-                      <span className="font-medium">not centralized</span> (or centralised), or{" "}
-                      <span className="font-medium">backup issue</span>.{" "}
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = (valid RCA ÷
-                      eligible) × 100 (percentage). Week-over-week compares the latest two weeks that have valid RCA
-                      volume. Based on all loaded rows.
-                    </p>
-                    {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
-                      <p className="mt-3 text-xs text-slate-500 dark:text-slate-500">
-                        Charts: top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by total case count (
-                        {pocProductivityList.length} total in table above).
-                      </p>
-                    ) : null}
-                    <div className="mt-4 space-y-4">
+                    <div className="space-y-4">
                       {pocProductivityTop.map((row, idx) => {
                         const series =
                           colMapSafe.date &&
@@ -1716,10 +1665,6 @@ export default function App() {
                     <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
                       Weekly trends
                     </h2>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                      Week starts Monday · compared to the previous week with data · column{" "}
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{weeklyByIssue.dateCol}</span>
-                    </p>
                   </div>
                   <DownloadBtn
                     count={weeklyPivotRows.length}
@@ -1922,19 +1867,6 @@ export default function App() {
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Issue Hotspots</h2>
-                  <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-400">
-                    Hubs ranked by count of{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      Partial Bagging, LM Fraud, Camera issues, Multiple bagging
-                    </span>
-                    , and{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">Unable to validate</span>{" "}
-                    only (top 15). Respects your filter pills above. Showing{" "}
-                    {hotspotsHasMore && !hotspotsExpanded
-                      ? `first ${HOTSPOTS_INITIAL_VISIBLE} of ${hotspotPairs.length}`
-                      : `${hotspotPairs.length}`}{" "}
-                    hub{hotspotPairs.length === 1 ? "" : "s"}.
-                  </p>
                 </div>
                 <DownloadBtn
                   count={hotspotPairs.reduce((s, [, v]) => s + v, 0)}
@@ -2070,22 +2002,6 @@ export default function App() {
                   <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
                     Recent Issues
                   </h2>
-                  <p className="mt-1 max-w-2xl text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
-                    Problematic issues only: excludes{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">proper bagging</span> and
-                    blank RCAs. Sorted descending:{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      {colMapSafe.date
-                        ? `newest ${colMapSafe.date} first`
-                        : colMapSafe.open
-                          ? `highest ${colMapSafe.open} first`
-                          : "original order among ties"}
-                    </span>
-                    {colMapSafe.date && colMapSafe.open
-                      ? `, then by ${colMapSafe.open}`
-                      : null}
-                    . Showing up to 12 rows.
-                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <DownloadBtn
