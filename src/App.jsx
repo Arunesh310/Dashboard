@@ -90,6 +90,21 @@ function UploadIcon({ className = "h-5 w-5" }) {
   );
 }
 
+function ChevronDownIcon({ className = "h-5 w-5", expanded }) {
+  return (
+    <svg
+      className={`${className} shrink-0 transition-transform duration-200 ${expanded ? "-rotate-180" : ""}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
   const styles = {
     dark:
@@ -429,6 +444,7 @@ export default function App() {
   const [dataTableRca, setDataTableRca] = useState("all");
   const [dataTableCategory, setDataTableCategory] = useState("all");
   const [dataTablePage, setDataTablePage] = useState(0);
+  const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
 
   useEffect(() => {
     ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
@@ -530,6 +546,22 @@ export default function App() {
     () => pocProductivityList.slice(0, POC_PRODUCTIVITY_CARD_LIMIT),
     [pocProductivityList]
   );
+
+  const pocProductivityAggregates = useMemo(() => {
+    let eligible = 0;
+    let proper = 0;
+    for (const r of pocProductivityList) {
+      eligible += r.eligible;
+      proper += r.proper;
+    }
+    return {
+      totalEligible: eligible,
+      totalProper: proper,
+      overallRatePct:
+        eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : null,
+      pocCount: pocProductivityList.length,
+    };
+  }, [pocProductivityList]);
 
   const zonePairs = useMemo(
     () => aggregateByField(filtered, colMapSafe.zone, 8),
@@ -1169,153 +1201,269 @@ export default function App() {
             </section>
 
             <div className="surface-card">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                    POC productivity <span className="text-slate-500 dark:text-slate-400">(POC)</span>
-                  </h2>
-                  <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-                    <span className="font-medium text-slate-800 dark:text-slate-200">Eligible pool</span> per POC
-                    excludes <span className="font-medium">Closed</span>,{" "}
-                    <span className="font-medium">Offline</span>, blank RCA, and RCA text containing{" "}
-                    <span className="font-medium">not centralized</span> (or centralised).{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> is proper
-                    bagging cases ÷ eligible cases (all other kinds in that pool count toward the denominator only).
-                    Week-over-week compares the latest two weeks that have eligible volume. Uses all loaded rows.
-                  </p>
-                  {colMapSafe.poc ? (
-                    <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-500">
-                      POC column:{" "}
-                      <span className="text-slate-700 dark:text-slate-300">{colMapSafe.poc}</span>
-                      {colMapSafe.date ? (
-                        <>
-                          {" "}
-                          · Date column:{" "}
-                          <span className="text-slate-700 dark:text-slate-300">{colMapSafe.date}</span>
-                        </>
-                      ) : (
-                        <span className="text-amber-700 dark:text-amber-300/90">
-                          {" "}
-                          · Add a date column for weekly productivity trends.
-                        </span>
-                      )}
-                    </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <button
+                  type="button"
+                  onClick={() => setPocProductivityExpanded((v) => !v)}
+                  className="flex min-w-0 flex-1 items-start gap-2 rounded-xl p-1 text-left transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
+                  aria-expanded={pocProductivityExpanded}
+                  aria-controls="poc-productivity-details"
+                  id="poc-productivity-toggle"
+                >
+                  <ChevronDownIcon
+                    className="mt-0.5 h-5 w-5 text-slate-500 dark:text-slate-400"
+                    expanded={pocProductivityExpanded}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-lg font-bold text-slate-900 dark:text-slate-100">
+                      POC productivity{" "}
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">(POC)</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-500">
+                      {pocProductivityExpanded ? "Hide" : "Show"} methodology & weekly trend charts
+                    </span>
+                  </span>
+                </button>
+                <div
+                  className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  role="presentation"
+                >
+                  {colMapSafe.poc && pocProductivityList.length > 0 ? (
+                    <DownloadBtn
+                      count={pocProductivityList.length}
+                      variant="blue"
+                      label="Download POC productivity summary"
+                      onClick={() =>
+                        downloadCsv(
+                          "poc-productivity-summary.csv",
+                          pocProductivityList.map((r) => ({
+                            poc: r.poc,
+                            eligible: r.eligible,
+                            proper: r.proper,
+                            rate_pct: r.ratePct ?? "",
+                          })),
+                          ["poc", "eligible", "proper", "rate_pct"]
+                        )
+                      }
+                    />
                   ) : null}
                 </div>
-                {colMapSafe.poc && pocProductivityList.length > 0 ? (
-                  <DownloadBtn
-                    count={pocProductivityList.length}
-                    variant="blue"
-                    label="Download POC productivity summary"
-                    onClick={() =>
-                      downloadCsv(
-                        "poc-productivity-summary.csv",
-                        pocProductivityList.map((r) => ({
-                          poc: r.poc,
-                          eligible: r.eligible,
-                          proper: r.proper,
-                          rate_pct: r.ratePct ?? "",
-                        })),
-                        ["poc", "eligible", "proper", "rate_pct"]
-                      )
-                    }
-                  />
-                ) : null}
               </div>
 
               {!colMapSafe.poc ? (
-                <p className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/80 px-4 py-6 text-sm text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/30 dark:text-slate-400">
+                <p className="mt-4 rounded-xl border border-dashed border-slate-300/90 bg-slate-50/80 px-4 py-6 text-sm text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/30 dark:text-slate-400">
                   Add a column named <strong className="text-slate-800 dark:text-slate-200">POC</strong>,{" "}
                   <strong className="text-slate-800 dark:text-slate-200">Point of contact</strong>,{" "}
                   <strong className="text-slate-800 dark:text-slate-200">Owner</strong>, or{" "}
                   <strong className="text-slate-800 dark:text-slate-200">Assignee</strong> to enable this view.
                 </p>
               ) : pocProductivityList.length === 0 ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                   No eligible cases after exclusions (every row may be closed, offline, blank, or not centralized).
                 </p>
               ) : (
                 <>
-                  {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
-                    <p className="mb-3 text-xs text-slate-500 dark:text-slate-500">
-                      Showing top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by eligible case volume (
-                      {pocProductivityList.length} total).
-                    </p>
-                  ) : null}
-                  <div className="space-y-4">
-                    {pocProductivityTop.map((row, idx) => {
-                      const series =
-                        colMapSafe.date &&
-                        buildWeeklyProductivitySeriesForPoc(
-                          annotated,
-                          colMapSafe.date,
-                          colMapSafe.poc,
-                          row.poc
-                        );
-                      const trend =
-                        series && series.length
-                          ? compareLatestWeeks(sliceLastWeeks(series, 52))
-                          : {
-                              direction: "none",
-                              summary: colMapSafe.date
-                                ? "No weekly eligible rows with parseable dates"
-                                : "Add a date column for weekly trends",
-                              last: row.ratePct ?? 0,
-                              prev: null,
-                            };
-                      const colors = POC_SPARKLINE_PALETTE[idx % POC_SPARKLINE_PALETTE.length];
-                      return (
-                        <div
-                          key={row.poc}
-                          className="surface-muted flex flex-col gap-3 p-4 lg:flex-row lg:items-stretch lg:justify-between"
-                        >
-                          <div className="min-w-0 shrink-0 lg:max-w-sm">
-                            <h3 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">
-                              {row.poc}
-                            </h3>
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                              Eligible{" "}
-                              <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                                {row.eligible.toLocaleString()}
-                              </span>
-                              {" · "}
-                              Proper bagging{" "}
-                              <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                                {row.proper.toLocaleString()}
-                              </span>
-                              {" · "}
-                              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                {row.ratePct != null ? `${row.ratePct}%` : "—"} overall
-                              </span>
-                            </p>
-                            <p
-                              className={`mt-2 inline-flex w-fit max-w-full rounded-full px-2.5 py-1 text-xs font-semibold ${productivityTrendPillClass(
-                                trend.direction
-                              )}`}
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-emerald-50/90 to-white px-4 py-3 dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-slate-900/30">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
+                        Overall productivity
+                      </p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                        {pocProductivityAggregates.overallRatePct != null
+                          ? `${pocProductivityAggregates.overallRatePct}%`
+                          : "—"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
+                        Proper ÷ all eligible (all POCs)
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Total eligible
+                      </p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {pocProductivityAggregates.totalEligible.toLocaleString()}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
+                        After exclusions
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Total proper bagging
+                      </p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {pocProductivityAggregates.totalProper.toLocaleString()}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
+                        Numerator
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        POCs in scope
+                      </p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {pocProductivityAggregates.pocCount.toLocaleString()}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
+                        With ≥1 eligible row
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-500">
+                    POC column:{" "}
+                    <span className="text-slate-700 dark:text-slate-300">{colMapSafe.poc}</span>
+                    {colMapSafe.date ? (
+                      <>
+                        {" "}
+                        · Date:{" "}
+                        <span className="text-slate-700 dark:text-slate-300">{colMapSafe.date}</span>
+                      </>
+                    ) : (
+                      <span className="text-amber-700 dark:text-amber-300/90">
+                        {" "}
+                        · Add a date column for weekly charts in details.
+                      </span>
+                    )}
+                  </p>
+
+                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
+                    <div className="max-h-[min(22rem,55vh)] overflow-auto">
+                      <table className="min-w-full text-left text-sm">
+                        <thead>
+                          <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-400">
+                            <th className="px-3 py-2.5">POC</th>
+                            <th className="px-3 py-2.5 text-right tabular-nums">Eligible</th>
+                            <th className="px-3 py-2.5 text-right tabular-nums">Proper</th>
+                            <th className="px-3 py-2.5 text-right tabular-nums">Productivity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pocProductivityList.map((row) => (
+                            <tr
+                              key={row.poc}
+                              className="border-b border-slate-100 dark:border-slate-800/80"
                             >
-                              {trend.summary}
-                            </p>
+                              <td className="max-w-[12rem] truncate px-3 py-2 font-medium text-slate-900 dark:text-slate-100">
+                                {row.poc}
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                                {row.eligible.toLocaleString()}
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                                {row.proper.toLocaleString()}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                                {row.ratePct != null ? `${row.ratePct}%` : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div
+                    id="poc-productivity-details"
+                    role="region"
+                    aria-labelledby="poc-productivity-toggle"
+                    hidden={!pocProductivityExpanded}
+                    className={pocProductivityExpanded ? "mt-5 border-t border-slate-200/90 pt-5 dark:border-slate-700/60" : "hidden"}
+                  >
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Eligible pool</span> per POC
+                      excludes <span className="font-medium">Closed</span>,{" "}
+                      <span className="font-medium">Offline</span>, blank RCA, and RCA containing{" "}
+                      <span className="font-medium">not centralized</span> (or centralised).{" "}
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> is proper
+                      bagging ÷ eligible. Week-over-week compares the latest two weeks with eligible volume. Based on
+                      all loaded rows.
+                    </p>
+                    {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
+                      <p className="mt-3 text-xs text-slate-500 dark:text-slate-500">
+                        Charts: top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by eligible volume (
+                        {pocProductivityList.length} total in table above).
+                      </p>
+                    ) : null}
+                    <div className="mt-4 space-y-4">
+                      {pocProductivityTop.map((row, idx) => {
+                        const series =
+                          colMapSafe.date &&
+                          buildWeeklyProductivitySeriesForPoc(
+                            annotated,
+                            colMapSafe.date,
+                            colMapSafe.poc,
+                            row.poc
+                          );
+                        const trend =
+                          series && series.length
+                            ? compareLatestWeeks(sliceLastWeeks(series, 52))
+                            : {
+                                direction: "none",
+                                summary: colMapSafe.date
+                                  ? "No weekly eligible rows with parseable dates"
+                                  : "Add a date column for weekly trends",
+                                last: row.ratePct ?? 0,
+                                prev: null,
+                              };
+                        const colors = POC_SPARKLINE_PALETTE[idx % POC_SPARKLINE_PALETTE.length];
+                        return (
+                          <div
+                            key={row.poc}
+                            className="surface-muted flex flex-col gap-3 p-4 lg:flex-row lg:items-stretch lg:justify-between"
+                          >
+                            <div className="min-w-0 shrink-0 lg:max-w-sm">
+                              <h3 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">
+                                {row.poc}
+                              </h3>
+                              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                                Eligible{" "}
+                                <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                                  {row.eligible.toLocaleString()}
+                                </span>
+                                {" · "}
+                                Proper{" "}
+                                <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                                  {row.proper.toLocaleString()}
+                                </span>
+                                {" · "}
+                                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                  {row.ratePct != null ? `${row.ratePct}%` : "—"}
+                                </span>
+                              </p>
+                              <p
+                                className={`mt-2 inline-flex w-fit max-w-full rounded-full px-2.5 py-1 text-xs font-semibold ${productivityTrendPillClass(
+                                  trend.direction
+                                )}`}
+                              >
+                                {trend.summary}
+                              </p>
+                            </div>
+                            <div className="min-h-[9rem] min-w-0 flex-1 lg:max-w-xl">
+                              {series && series.length > 0 ? (
+                                <TrendSparkline
+                                  series={series}
+                                  borderColor={colors.border}
+                                  fillColor={colors.fill}
+                                  datasetLabel="Productivity"
+                                  ySuggestedMax={100}
+                                />
+                              ) : (
+                                <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">
+                                  {colMapSafe.date
+                                    ? "No weekly eligible rows with parseable dates for this POC."
+                                    : "Add a date column to chart weekly productivity %."}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="min-h-[9rem] min-w-0 flex-1 lg:max-w-xl">
-                            {series && series.length > 0 ? (
-                              <TrendSparkline
-                                series={series}
-                                borderColor={colors.border}
-                                fillColor={colors.fill}
-                                datasetLabel="Productivity"
-                                ySuggestedMax={100}
-                              />
-                            ) : (
-                              <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">
-                                {colMapSafe.date
-                                  ? "No weekly eligible rows with parseable dates for this POC."
-                                  : "Add a date column to chart weekly productivity %."}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </>
               )}
