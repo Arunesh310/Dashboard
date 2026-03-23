@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTheme } from "./theme.jsx";
 import Papa from "papaparse";
 import {
   Chart as ChartJS,
@@ -46,7 +47,6 @@ ChartJS.register(
 );
 
 ChartJS.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
-ChartJS.defaults.color = "#475569";
 
 function DownloadIcon({ className = "h-4 w-4" }) {
   return (
@@ -90,13 +90,20 @@ function UploadIcon({ className = "h-5 w-5" }) {
 
 function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
   const styles = {
-    dark: "bg-slate-900 text-white hover:bg-slate-800",
-    red: "bg-red-600 text-white hover:bg-red-700",
-    amber: "bg-amber-500 text-white hover:bg-amber-600",
-    blue: "bg-blue-600 text-white hover:bg-blue-700",
-    slate: "bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200",
-    orange: "bg-orange-500 text-white hover:bg-orange-600",
-    outline: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
+    dark:
+      "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn hover:from-slate-600 hover:to-slate-800 hover:shadow-md dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark dark:hover:from-slate-500 dark:hover:to-slate-900",
+    red:
+      "border border-red-500/25 bg-gradient-to-b from-red-600 to-red-700 text-white shadow-md shadow-red-900/15 hover:from-red-500 hover:to-red-600",
+    amber:
+      "border border-amber-400/30 bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-md shadow-amber-900/10 hover:from-amber-400 hover:to-amber-500",
+    blue:
+      "border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-md shadow-blue-900/15 hover:from-blue-500 hover:to-blue-600",
+    slate:
+      "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
+    orange:
+      "border border-orange-400/30 bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md hover:from-orange-400 hover:to-orange-500",
+    outline:
+      "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm backdrop-blur-sm hover:border-slate-300 hover:bg-white dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800/80",
   };
   return (
     <button
@@ -104,7 +111,7 @@ function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
       disabled={disabled}
       onClick={onClick}
       title={label}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold shadow-sm transition disabled:opacity-40 ${styles[variant]}`}
+      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${styles[variant]}`}
     >
       <span>{shortCount(count)}</span>
       <DownloadIcon className="h-4 w-4 opacity-90" />
@@ -112,26 +119,70 @@ function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const dark = theme === "dark";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      onClick={toggleTheme}
+      className="group flex items-center gap-2.5 rounded-full border border-slate-200/90 bg-white/90 py-1 pl-3 pr-1 shadow-btn backdrop-blur-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md active:scale-[0.98] dark:border-slate-600/70 dark:bg-slate-800/70 dark:shadow-btn-dark dark:hover:border-slate-500"
+    >
+      <span className="hidden text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:inline dark:text-slate-400">
+        {dark ? "Dark" : "Light"}
+      </span>
+      <span
+        className="relative inline-flex h-8 w-[3.25rem] shrink-0 items-center rounded-full bg-slate-200/90 p-1 ring-1 ring-slate-300/80 transition-colors dark:bg-slate-950/80 dark:ring-slate-700/80"
+        aria-hidden
+      >
+        <span
+          className={`absolute left-1 flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-md transition-transform duration-300 ease-out dark:bg-slate-700 ${
+            dark ? "translate-x-[1.35rem]" : "translate-x-0"
+          }`}
+        >
+          {dark ? (
+            <svg className="h-3.5 w-3.5 text-amber-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M21.64 13a1 1 0 00-1.05-.14 8.05 8.05 0 01-3.37.73 8.15 8.15 0 01-8.14-8.1 8.59 8.59 0 01.25-2 1 1 0 00-.33-1.05 1 1 0 00-1.09-.21A10 10 0 1022 13.05a1 1 0 00-.36-1.05z" />
+            </svg>
+          ) : (
+            <svg className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 18a6 6 0 100-12 6 6 0 000 12zM12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM4.22 4.22a1 1 0 011.42 0l.7.7a1 1 0 01-1.42 1.42l-.7-.7a1 1 0 010-1.42zm12.72 12.72a1 1 0 011.42 0l.7.7a1 1 0 01-1.42 1.42l-.7-.7a1 1 0 010-1.42zM2 12a1 1 0 011-1h1a1 1 0 110 2H3a1 1 0 01-1-1zm18 0a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1zM4.22 19.78a1 1 0 010-1.42l.7-.7a1 1 0 111.42 1.42l-.7.7a1 1 0 01-1.42 0zM17.66 6.34a1 1 0 010-1.42l.7-.7a1 1 0 111.42 1.42l-.7.7a1 1 0 01-1.42 0z" />
+            </svg>
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function zoneBadgeClass(zone) {
   const z = String(zone ?? "").toLowerCase();
-  if (z.includes("north")) return "bg-sky-100 text-sky-800 ring-1 ring-sky-200";
-  if (z.includes("east")) return "bg-amber-100 text-amber-900 ring-1 ring-amber-200";
-  if (z.includes("west")) return "bg-violet-100 text-violet-800 ring-1 ring-violet-200";
-  if (z.includes("south")) return "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200";
-  return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
+  if (z.includes("north"))
+    return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35";
+  if (z.includes("east"))
+    return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
+  if (z.includes("west"))
+    return "bg-violet-100 text-violet-900 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/35";
+  if (z.includes("south"))
+    return "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-400/35";
+  return "bg-slate-100 text-slate-800 ring-1 ring-slate-200/80 dark:bg-slate-600/35 dark:text-slate-200 dark:ring-slate-500/45";
 }
 
 function rcaBadgeClass(kind) {
   if (kind === "partial_bagging")
-    return "bg-orange-100 text-orange-900 ring-1 ring-orange-200";
+    return "bg-orange-100 text-orange-950 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-400/35";
   if (kind === "multiple_bagging")
-    return "bg-amber-100 text-amber-950 ring-1 ring-amber-200";
-  if (kind === "lm_fraud") return "bg-red-100 text-red-800 ring-1 ring-red-200";
+    return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
+  if (kind === "lm_fraud")
+    return "bg-red-100 text-red-900 ring-1 ring-red-200/80 dark:bg-red-500/15 dark:text-red-200 dark:ring-red-400/35";
   if (kind === "camera_issues")
-    return "bg-violet-100 text-violet-800 ring-1 ring-violet-200";
+    return "bg-violet-100 text-violet-900 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/35";
   if (kind === "unable_to_validate")
-    return "bg-yellow-100 text-yellow-950 ring-1 ring-yellow-200";
-  return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
+    return "bg-yellow-100 text-yellow-950 ring-1 ring-yellow-200/80 dark:bg-yellow-500/15 dark:text-yellow-100 dark:ring-yellow-400/35";
+  return "bg-slate-100 text-slate-800 ring-1 ring-slate-200/80 dark:bg-slate-600/35 dark:text-slate-200 dark:ring-slate-500/45";
 }
 
 function issueSlice(allRows, pill, issueKind) {
@@ -164,12 +215,16 @@ const FILTER_DEFS = [
   { id: "camera_issues", label: "Camera Issues" },
 ];
 
-const barGrid = {
-  color: "rgba(148, 163, 184, 0.35)",
-  borderDash: [4, 4],
-};
-
 function HorizontalBarChart({ labels, values, color }) {
+  const { isDark } = useTheme();
+  const barGrid = useMemo(
+    () => ({
+      color: isDark ? "rgba(148, 163, 184, 0.14)" : "rgba(148, 163, 184, 0.35)",
+      borderDash: [4, 4],
+    }),
+    [isDark]
+  );
+
   const data = useMemo(
     () => ({
       labels,
@@ -202,15 +257,21 @@ function HorizontalBarChart({ labels, values, color }) {
         x: {
           beginAtZero: true,
           grid: { ...barGrid, drawBorder: false },
-          ticks: { font: { size: 12 } },
+          ticks: {
+            font: { size: 12 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
         },
         y: {
           grid: { display: false, drawBorder: false },
-          ticks: { font: { size: 12 } },
+          ticks: {
+            font: { size: 12 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
         },
       },
     }),
-    []
+    [barGrid, isDark]
   );
 
   return <Bar data={data} options={options} />;
@@ -218,14 +279,17 @@ function HorizontalBarChart({ labels, values, color }) {
 
 /** For issue metrics, “up” means worsening (more cases). */
 function issueTrendPillClass(direction) {
-  if (direction === "up") return "bg-red-50 text-red-800 ring-1 ring-red-100";
-  if (direction === "down") return "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100";
+  if (direction === "up")
+    return "bg-red-50 text-red-900 ring-1 ring-red-100 dark:bg-red-500/12 dark:text-red-200 dark:ring-red-400/30";
+  if (direction === "down")
+    return "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100 dark:bg-emerald-500/12 dark:text-emerald-200 dark:ring-emerald-400/30";
   if (direction === "baseline" || direction === "none")
-    return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
-  return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
+    return "bg-slate-50 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-600/50";
+  return "bg-slate-100 text-slate-800 ring-1 ring-slate-200 dark:bg-slate-700/40 dark:text-slate-200 dark:ring-slate-600/45";
 }
 
 function TrendSparkline({ series, borderColor, fillColor }) {
+  const { isDark } = useTheme();
   const trimmed = useMemo(() => sliceLastWeeks(series, 10), [series]);
   const data = useMemo(
     () => ({
@@ -271,21 +335,32 @@ function TrendSparkline({ series, borderColor, fillColor }) {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { maxRotation: 45, minRotation: 0, font: { size: 10 } },
+          ticks: {
+            maxRotation: 45,
+            minRotation: 0,
+            font: { size: 10 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
         },
         y: {
           beginAtZero: true,
-          ticks: { precision: 0, font: { size: 10 } },
-          grid: { color: "rgba(148,163,184,0.2)" },
+          ticks: {
+            precision: 0,
+            font: { size: 10 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
+          grid: {
+            color: isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.2)",
+          },
         },
       },
     }),
-    [trimmed]
+    [trimmed, isDark]
   );
 
   if (!trimmed.length) {
     return (
-      <div className="flex h-36 items-center justify-center text-xs text-slate-400">
+      <div className="flex h-36 items-center justify-center text-xs text-slate-500 dark:text-slate-500">
         No weekly data yet
       </div>
     );
@@ -299,6 +374,7 @@ function TrendSparkline({ series, borderColor, fillColor }) {
 }
 
 export default function App() {
+  const { isDark } = useTheme();
   const [fileName, setFileName] = useState("");
   const [fields, setFields] = useState([]);
   const [colMap, setColMap] = useState(null);
@@ -312,6 +388,13 @@ export default function App() {
   const [dataTableRca, setDataTableRca] = useState("all");
   const [dataTableCategory, setDataTableCategory] = useState("all");
   const [dataTablePage, setDataTablePage] = useState(0);
+
+  useEffect(() => {
+    ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
+    ChartJS.defaults.borderColor = isDark
+      ? "rgba(148, 163, 184, 0.18)"
+      : "rgba(15, 23, 42, 0.08)";
+  }, [isDark]);
 
   useEffect(() => {
     setHotspotsExpanded(false);
@@ -557,12 +640,12 @@ export default function App() {
           data,
           backgroundColor: labels.map((_, i) => palette[i % palette.length]),
           borderWidth: 2,
-          borderColor: "#fff",
+          borderColor: isDark ? "#0f172a" : "#ffffff",
           hoverOffset: 6,
         },
       ],
     };
-  }, [zonePairs]);
+  }, [zonePairs, isDark]);
 
   const donutOptions = useMemo(
     () => ({
@@ -572,7 +655,12 @@ export default function App() {
       plugins: {
         legend: {
           position: "bottom",
-          labels: { boxWidth: 12, padding: 16, font: { size: 12 } },
+          labels: {
+            boxWidth: 12,
+            padding: 16,
+            font: { size: 12 },
+            color: isDark ? "#cbd5e1" : "#475569",
+          },
         },
         tooltip: {
           backgroundColor: "rgba(15, 23, 42, 0.92)",
@@ -581,7 +669,7 @@ export default function App() {
         },
       },
     }),
-    []
+    [isDark]
   );
 
   const onParsed = useCallback((res, name) => {
@@ -655,29 +743,37 @@ export default function App() {
   const missingDate = annotated.length > 0 && !colMapSafe.date;
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-950 text-slate-100 shadow-md shadow-black/30">
+    <div className="min-h-screen bg-slate-50 transition-colors duration-200 dark:bg-slate-950">
+      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 text-slate-900 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="min-w-0 shrink-0">
-            <h1 className="text-lg font-bold tracking-tight sm:text-xl">CCTV Dashboard</h1>
-            <p className="text-xs text-slate-400">Real-time monitoring · local analysis</p>
+            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-lg font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 sm:text-xl">
+              CCTV Dashboard
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Real-time monitoring · local analysis
+            </p>
             {fileName ? (
-              <p className="mt-1 truncate text-xs text-slate-500">
+              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-500">
                 {fileName} · {annotated.length.toLocaleString()} rows
               </p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <nav className="flex rounded-lg bg-slate-900 p-1" role="tablist" aria-label="Main views">
+            <nav
+              className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90"
+              role="tablist"
+              aria-label="Main views"
+            >
               <button
                 type="button"
                 role="tab"
                 aria-selected={activeTab === "dashboard"}
                 onClick={() => setActiveTab("dashboard")}
-                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200 ${
                   activeTab === "dashboard"
-                    ? "bg-blue-600 text-white shadow"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
                 Dashboard
@@ -687,17 +783,17 @@ export default function App() {
                 role="tab"
                 aria-selected={activeTab === "data"}
                 onClick={() => setActiveTab("data")}
-                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200 ${
                   activeTab === "data"
-                    ? "bg-blue-600 text-white shadow"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
                 Data Table
               </button>
             </nav>
             <label
-              className="flex cursor-pointer items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+              className="btn-header-icon cursor-pointer"
               title="Upload CSV"
             >
               <UploadIcon />
@@ -712,12 +808,13 @@ export default function App() {
                 }}
               />
             </label>
+            <ThemeToggle />
             <button
               type="button"
               onClick={handleReset}
               disabled={!annotated.length}
               title="Clear loaded data"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-35"
+              className="btn-header-ghost"
             >
               <svg
                 className="h-4 w-4"
@@ -745,7 +842,7 @@ export default function App() {
                     exportFields
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500"
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-900/20 transition-all duration-200 hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] dark:shadow-btn-dark"
               >
                 <span>Export ({shortCount(dataTableFiltered.length)})</span>
                 <DownloadIcon className="h-4 w-4" />
@@ -754,7 +851,7 @@ export default function App() {
           </div>
         </div>
         {error ? (
-          <div className="border-t border-amber-900/40 bg-amber-950/60 px-4 py-2 text-center text-sm text-amber-100 sm:px-6">
+          <div className="border-t border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950 sm:px-6 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100">
             {error}
           </div>
         ) : null}
@@ -763,50 +860,54 @@ export default function App() {
       <main
         className={
           activeTab === "data"
-            ? "min-h-[calc(100vh-3.5rem)] bg-slate-950 pb-16"
-            : "mx-auto max-w-6xl space-y-5 bg-slate-50 px-4 py-6 pb-16 sm:px-6"
+            ? "min-h-[calc(100vh-3.5rem)] bg-slate-100 pb-16 dark:bg-slate-950"
+            : "mx-auto max-w-6xl space-y-5 bg-slate-100/80 px-4 py-6 pb-16 sm:px-6 dark:bg-transparent"
         }
       >
         {activeTab === "dashboard" ? (
           <>
             {!annotated.length ? (
-              <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center text-slate-600 shadow-card">
-                <p className="font-medium text-slate-800">No file loaded</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Use the <strong>upload</strong> button in the header to choose a CSV. Typical columns:{" "}
-                  <strong>RCA</strong>, <strong>Hub</strong>, <strong>Zone</strong>,{" "}
-                  <strong>Manifest</strong>, optional <strong>Date</strong> for weekly trends.
+              <div className="surface-card px-6 py-10 text-center text-slate-600 dark:text-slate-400">
+                <p className="font-medium text-slate-800 dark:text-slate-100">No file loaded</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  Use the <strong className="text-slate-900 dark:text-slate-200">upload</strong> button in
+                  the header to choose a CSV. Typical columns:{" "}
+                  <strong className="text-slate-900 dark:text-slate-200">RCA</strong>,{" "}
+                  <strong className="text-slate-900 dark:text-slate-200">Hub</strong>,{" "}
+                  <strong className="text-slate-900 dark:text-slate-200">Zone</strong>,{" "}
+                  <strong className="text-slate-900 dark:text-slate-200">Manifest</strong>, optional{" "}
+                  <strong className="text-slate-900 dark:text-slate-200">Date</strong> for weekly trends.
                 </p>
               </div>
             ) : null}
 
             {missingRca && annotated.length ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <div className="rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-100">
             No <strong>RCA</strong> column detected. Classification uses the first column:{" "}
             <strong>{fields[0]}</strong>. Rename or add an RCA column for best results.
           </div>
         ) : null}
 
         {missingDate && annotated.length ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-            Add a <strong>Date</strong> column (aliases: <em>Created</em>, <em>Reported</em>,{" "}
-            <em>Event date</em>, <em>Timestamp</em>, …) to unlock{" "}
-            <span className="font-medium text-slate-800">week-over-week trends</span> for Partial
-            Bagging, LM Fraud, and Camera issues.
+          <div className="rounded-xl border border-dashed border-slate-300/90 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-600/60 dark:bg-slate-900/60 dark:text-slate-300">
+            Add a <strong className="text-slate-800 dark:text-slate-100">Date</strong> column (aliases:{" "}
+            <em>Created</em>, <em>Reported</em>, <em>Event date</em>, <em>Timestamp</em>, …) to unlock{" "}
+            <span className="font-medium text-slate-800 dark:text-slate-100">week-over-week trends</span>{" "}
+            for Partial Bagging, LM Fraud, and Camera issues.
           </div>
         ) : null}
 
         {annotated.length ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50 to-white p-4 shadow-card dark:border-red-500/20 dark:from-red-950/50 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-lg text-red-700 shadow-inner dark:bg-red-500/20 dark:text-red-300">
                     ⚠
                   </span>
                   <div>
-                    <p className="font-semibold text-red-900">LM Fraud detected</p>
-                    <p className="text-sm text-red-800">{counts.lm_fraud} cases in file</p>
+                    <p className="font-semibold text-red-900 dark:text-red-100">LM Fraud detected</p>
+                    <p className="text-sm text-red-800 dark:text-red-200/90">{counts.lm_fraud} cases in file</p>
                   </div>
                 </div>
                 <DownloadBtn
@@ -822,14 +923,14 @@ export default function App() {
                   }
                 />
               </div>
-              <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-card dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-lg font-bold text-amber-800 shadow-inner dark:bg-amber-500/20 dark:text-amber-200">
                     !
                   </span>
                   <div>
-                    <p className="font-semibold text-amber-950">High Partial Bagging</p>
-                    <p className="text-sm text-amber-900">
+                    <p className="font-semibold text-amber-950 dark:text-amber-100">High Partial Bagging</p>
+                    <p className="text-sm text-amber-900 dark:text-amber-200/90">
                       {counts.partial_bagging} cases in file
                     </p>
                   </div>
@@ -859,19 +960,19 @@ export default function App() {
                 return (
                   <div
                     key={p.id}
-                    className={`flex items-center gap-1 rounded-full border px-1 py-1 pl-3 shadow-sm ${
+                    className={`flex items-center gap-1 rounded-full border px-1 py-1 pl-3 shadow-sm transition-all ${
                       active
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-slate-200 bg-white"
+                        ? "border-blue-500/80 bg-blue-50 ring-2 ring-blue-200/80 dark:border-blue-500/50 dark:bg-blue-950/50 dark:ring-blue-500/30"
+                        : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => setFilter(p.id)}
-                      className="py-1 text-sm font-semibold text-slate-800"
+                      className="py-1 text-sm font-semibold text-slate-800 dark:text-slate-100"
                     >
                       {p.label}{" "}
-                      <span className="font-normal text-slate-500">({shortCount(c)})</span>
+                      <span className="font-normal text-slate-500 dark:text-slate-400">({shortCount(c)})</span>
                     </button>
                     <DownloadBtn
                       count={c}
@@ -897,7 +998,7 @@ export default function App() {
                   value: kpis.total,
                   sub: "All loaded rows",
                   icon: "📊",
-                  tone: "text-blue-600",
+                  tone: "text-blue-600 dark:text-blue-400",
                   dl: () =>
                     downloadCsv("all-records.csv", stripExportRows(annotated, exportFields), exportFields),
                 },
@@ -906,7 +1007,7 @@ export default function App() {
                   value: kpis.proper,
                   sub: `${kpis.properRate}% rate`,
                   icon: "✓",
-                  tone: "text-emerald-600",
+                  tone: "text-emerald-600 dark:text-emerald-400",
                   dl: () =>
                     downloadCsv(
                       "proper-bagging.csv",
@@ -922,7 +1023,7 @@ export default function App() {
                   value: kpis.partial,
                   sub: "Watchlist",
                   icon: "📦",
-                  tone: "text-orange-600",
+                  tone: "text-orange-600 dark:text-orange-400",
                   dl: () =>
                     downloadCsv(
                       "partial-bagging-kpi.csv",
@@ -938,7 +1039,7 @@ export default function App() {
                   value: kpis.fraud,
                   sub: "Escalations",
                   icon: "⚠",
-                  tone: "text-red-600",
+                  tone: "text-red-600 dark:text-red-400",
                   dl: () =>
                     downloadCsv(
                       "lm-fraud-kpi.csv",
@@ -954,7 +1055,7 @@ export default function App() {
                   value: kpis.camera,
                   sub: "Hardware / feed",
                   icon: "📹",
-                  tone: "text-violet-600",
+                  tone: "text-violet-600 dark:text-violet-400",
                   dl: () =>
                     downloadCsv(
                       "camera-issues.csv",
@@ -970,7 +1071,7 @@ export default function App() {
                   value: kpis.issueLike,
                   sub: `${kpis.issueRate}% of records`,
                   icon: "✕",
-                  tone: "text-slate-800",
+                  tone: "text-slate-800 dark:text-slate-100",
                   dl: () =>
                     downloadCsv(
                       "total-issues.csv",
@@ -993,14 +1094,11 @@ export default function App() {
                     ),
                 },
               ].map((k) => (
-                <div
-                  key={k.title}
-                  className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
-                >
+                <div key={k.title} className="surface-card relative">
                   <button
                     type="button"
                     onClick={k.dl}
-                    className="absolute right-4 top-4 rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
+                    className="absolute right-4 top-4 rounded-xl border border-slate-200/90 bg-white/80 p-2 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     title="Download this segment"
                   >
                     <DownloadIcon className="h-4 w-4" />
@@ -1008,11 +1106,11 @@ export default function App() {
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{k.icon}</span>
                     <div>
-                      <p className="text-sm font-medium text-slate-500">{k.title}</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
                       <p className={`mt-1 text-3xl font-bold tracking-tight ${k.tone}`}>
                         {k.value.toLocaleString()}
                       </p>
-                      <p className="mt-1 text-sm text-slate-600">{k.sub}</p>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
                     </div>
                   </div>
                 </div>
@@ -1020,13 +1118,13 @@ export default function App() {
             </section>
 
             {weeklyByIssue.dateCol ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+              <div className="surface-card">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Weekly trends</h2>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Weekly trends</h2>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                       Week starts Monday · compared to the previous week with data · column{" "}
-                      <span className="font-semibold text-slate-800">{weeklyByIssue.dateCol}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{weeklyByIssue.dateCol}</span>
                     </p>
                   </div>
                   <DownloadBtn
@@ -1043,7 +1141,7 @@ export default function App() {
                   />
                 </div>
                 {weeklyParseableCount === 0 ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <p className="rounded-lg border border-amber-200/90 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-100">
                     No values in <strong>{weeklyByIssue.dateCol}</strong> parsed as dates. Try
                     ISO dates (2025-03-15), DD/MM/YYYY, or Excel serial numbers.
                   </p>
@@ -1082,10 +1180,10 @@ export default function App() {
                       return (
                         <div
                           key={m.title}
-                          className="flex flex-col rounded-xl border border-slate-100 bg-slate-50/80 p-4"
+                          className="surface-muted flex flex-col p-4"
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                               <span>{m.icon}</span>
                               {m.title}
                             </h3>
@@ -1101,7 +1199,7 @@ export default function App() {
                                   ["week_start", m.col]
                                 )
                               }
-                              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50"
+                              className="rounded-xl border border-slate-200/90 bg-white p-2 text-slate-500 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
                               title="Download this series"
                             >
                               <DownloadIcon className="h-4 w-4" />
@@ -1114,13 +1212,16 @@ export default function App() {
                           >
                             {trend.summary}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Latest week: <span className="font-semibold text-slate-700">{trend.last}</span>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                            Latest week:{" "}
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{trend.last}</span>
                             {trend.prev != null ? (
                               <>
                                 {" "}
                                 · Prior:{" "}
-                                <span className="font-semibold text-slate-700">{trend.prev}</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                  {trend.prev}
+                                </span>
                               </>
                             ) : null}
                           </p>
@@ -1139,9 +1240,9 @@ export default function App() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <div className="surface-card">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900">Zone Distribution</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Zone Distribution</h2>
                 <DownloadBtn
                   count={filtered.length}
                   variant="blue"
@@ -1152,7 +1253,7 @@ export default function App() {
               <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
                 <div className="h-64">
                   {zonePairs.length ? <Doughnut data={donutData} options={donutOptions} /> : (
-                    <p className="flex h-full items-center justify-center text-slate-500">
+                    <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
                       No zone column or empty filter.
                     </p>
                   )}
@@ -1161,14 +1262,14 @@ export default function App() {
                   {zonePairs.map(([z, n]) => (
                     <li
                       key={z}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                      className="surface-muted flex items-center justify-between px-3 py-2"
                     >
-                      <span className="font-medium text-slate-800">{z}</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{z}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-600">{shortCount(n)}</span>
+                        <span className="text-slate-600 dark:text-slate-400">{shortCount(n)}</span>
                         <button
                           type="button"
-                          className="rounded-lg border border-slate-200 p-1 text-slate-500 hover:bg-white"
+                          className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
                           title={`Download rows for ${z}`}
                           onClick={() =>
                             downloadCsv(
@@ -1194,9 +1295,9 @@ export default function App() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <div className="surface-card">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900">RCA Categories</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">RCA Categories</h2>
                 <DownloadBtn
                   count={rcaPairs.reduce((s, [, v]) => s + v, 0)}
                   variant="blue"
@@ -1212,23 +1313,24 @@ export default function App() {
                     color="rgba(37, 99, 235, 0.85)"
                   />
                 ) : (
-                  <p className="flex h-full items-center justify-center text-slate-500">
+                  <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
                     No data for current filter.
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <div className="surface-card">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Issue Hotspots</h2>
-                  <p className="mt-1 max-w-xl text-sm text-slate-600">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Issue Hotspots</h2>
+                  <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-400">
                     Hubs ranked by count of{" "}
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
                       Partial Bagging, LM Fraud, Camera issues, Multiple bagging
                     </span>
-                    , and <span className="font-medium text-slate-800">Unable to validate</span>{" "}
+                    , and{" "}
+                    <span className="font-medium text-slate-800 dark:text-slate-200">Unable to validate</span>{" "}
                     only (top 15). Respects your filter pills above. Showing{" "}
                     {hotspotsHasMore && !hotspotsExpanded
                       ? `first ${HOTSPOTS_INITIAL_VISIBLE} of ${hotspotPairs.length}`
@@ -1247,23 +1349,25 @@ export default function App() {
                 {hotspotsVisiblePairs.map(([hub, n], i) => (
                   <li
                     key={hub}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
+                    className="surface-muted flex items-center justify-between px-3 py-2"
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                          i === 0 ? "bg-orange-100 text-orange-800" : "bg-slate-100 text-slate-600"
+                          i === 0
+                            ? "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
                         }`}
                       >
                         {i + 1}
                       </span>
-                      <span className="font-medium text-slate-800">{hub}</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{hub}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="tabular-nums text-slate-600">{n}</span>
+                      <span className="tabular-nums text-slate-600 dark:text-slate-400">{n}</span>
                       <button
                         type="button"
-                        className="rounded-lg border border-slate-200 p-1 text-slate-500 hover:bg-slate-50"
+                        className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
                         onClick={() =>
                           downloadCsv(
                             `hub-${String(hub).replace(/\W+/g, "_")}-hotspot-rcas.csv`,
@@ -1288,7 +1392,7 @@ export default function App() {
               {hotspotsHasMore ? (
                 <button
                   type="button"
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  className="mt-3 w-full rounded-xl border border-slate-200/90 bg-slate-50/90 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-600/70 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
                   aria-expanded={hotspotsExpanded}
                   onClick={() => setHotspotsExpanded((v) => !v)}
                 >
@@ -1362,15 +1466,16 @@ export default function App() {
               />
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <div className="surface-card">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Recent Issues</h2>
-                  <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                    Problematic issues only: excludes <span className="font-medium text-slate-800">closed</span>,{" "}
-                    <span className="font-medium text-slate-800">proper bagging</span>, and blank RCAs. Sorted
-                    descending:{" "}
-                    <span className="font-medium text-slate-800">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Recent Issues</h2>
+                  <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                    Problematic issues only: excludes{" "}
+                    <span className="font-medium text-slate-800 dark:text-slate-200">closed</span>,{" "}
+                    <span className="font-medium text-slate-800 dark:text-slate-200">proper bagging</span>, and
+                    blank RCAs. Sorted descending:{" "}
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
                       {colMapSafe.date
                         ? `newest ${colMapSafe.date} first`
                         : colMapSafe.open
@@ -1398,10 +1503,10 @@ export default function App() {
                   />
                 </div>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700/60">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
                       {colMapSafe.manifest ? <th className="px-3 py-2">Manifest</th> : null}
                       {colMapSafe.hub ? <th className="px-3 py-2">Hub</th> : null}
                       {colMapSafe.zone ? <th className="px-3 py-2">Zone</th> : null}
@@ -1415,7 +1520,7 @@ export default function App() {
                       <tr>
                         <td
                           colSpan={10}
-                          className="px-3 py-10 text-center text-sm text-slate-500"
+                          className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-500"
                         >
                           No problematic rows (non-closed, non-proper-bagging, non-blank RCA) for this filter.
                         </td>
@@ -1428,15 +1533,17 @@ export default function App() {
                               ? `${String(r[colMapSafe.manifest] ?? idx)}-${idx}`
                               : `${idx}-${String(r[colMapSafe.hub] ?? "")}-${getRcaValue(r, colMapSafe, fields)}`
                           }
-                          className="border-b border-slate-100 hover:bg-slate-50/80"
+                          className="border-b border-slate-100 hover:bg-slate-50/80 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
                         >
                           {colMapSafe.manifest ? (
-                            <td className="px-3 py-2 font-mono text-xs text-slate-800">
+                            <td className="px-3 py-2 font-mono text-xs text-slate-800 dark:text-slate-200">
                               {r[colMapSafe.manifest] ?? "—"}
                             </td>
                           ) : null}
                           {colMapSafe.hub ? (
-                            <td className="px-3 py-2 text-slate-700">{r[colMapSafe.hub] ?? "—"}</td>
+                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                              {r[colMapSafe.hub] ?? "—"}
+                            </td>
                           ) : null}
                           {colMapSafe.zone ? (
                             <td className="px-3 py-2">
@@ -1459,14 +1566,14 @@ export default function App() {
                             </span>
                           </td>
                           {colMapSafe.open ? (
-                            <td className="px-3 py-2 font-semibold text-red-600 tabular-nums">
+                            <td className="px-3 py-2 font-semibold tabular-nums text-red-600 dark:text-red-400">
                               {r[colMapSafe.open] ?? "—"}
                             </td>
                           ) : null}
                           <td className="px-3 py-2">
                             <button
                               type="button"
-                              className="rounded-lg border border-slate-200 p-1 text-slate-500 hover:bg-white"
+                              className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
                               title="Download this row"
                               onClick={() =>
                                 downloadCsv(
@@ -1527,9 +1634,9 @@ function ChartCard({
 }) {
   const summaryTotal = pairs.reduce((s, [, v]) => s + v, 0);
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+    <div className="surface-card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
           <span>{icon}</span>
           {title}
         </h2>
@@ -1551,7 +1658,7 @@ function ChartCard({
             color={color}
           />
         ) : (
-          <p className="flex h-full items-center justify-center text-slate-500">
+          <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
             No rows for this issue with the current filter.
           </p>
         )}

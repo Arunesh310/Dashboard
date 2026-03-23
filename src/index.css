@@ -2,7 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+@layer base {
+  body {
+    margin: 0;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  ::selection {
+    @apply bg-blue-500/25 text-slate-900 dark:bg-sky-500/30 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  .btn-header {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-btn transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 dark:shadow-btn-dark;
+  }
+
+  .btn-header-ghost {
+    @apply btn-header border-slate-200/90 bg-white/90 text-slate-700 backdrop-blur-sm hover:border-slate-300 hover:bg-white hover:shadow-md dark:border-slate-600/80 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800;
+  }
+
+  .btn-header-icon {
+    @apply btn-header border-slate-200/90 bg-white/90 text-slate-600 backdrop-blur-sm hover:border-blue-300/60 hover:bg-blue-50/80 hover:text-blue-700 dark:border-slate-600/80 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-sky-500/40 dark:hover:bg-sky-950/40 dark:hover:text-sky-200;
+  }
+
+  .surface-card {
+    @apply rounded-2xl border border-slate-200/90 bg-white/95 p-5 shadow-card backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark;
+  }
+
+  .surface-muted {
+    @apply rounded-xl border border-slate-100 bg-slate-50/90 dark:border-slate-700/40 dark:bg-slate-800/40;
+  }
 }
