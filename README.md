@@ -5,9 +5,9 @@ A browser-based **operations dashboard** for analyzing CCTV / logistics-style is
 ## Features
 
 - **CSV upload** — Parse and analyze files with Papa Parse; column names are detected automatically (RCA, Hub, Zone, Manifest, Date, POC, etc.).
-- **Dashboard** — KPIs, filters (All Data, Partial Bagging, LM Fraud, No Footage, Camera Issues), zone distribution (doughnut), RCA category bar chart, weekly trends, issue hotspots, hub-level charts, and a “Recent issues” table.
+- **Dashboard** — KPIs, filters (All Data, Partial Bagging, LM Fraud, No Footage, Camera Issues), zone distribution (doughnut), RCA category bar chart, weekly trends, issue hotspots, hub-level charts, and a “Recent issues” table. Rows whose RCA is classified as **closed** are **omitted everywhere** (not shown in charts, tables, or exports).
 - **Data table** — Search, filters (zone, RCA, category), pagination, row click / button to export a single row as CSV.
-- **POC productivity (POC)** — Per–point-of-contact metrics: **productivity = total eligible cases ÷ valid RCA cases** (eligible = all rows with a POC; valid RCA excludes Closed, Offline, blank RCA, and “not centralized” / “not centralised”). Optional weekly ratio trends and CSV export.
+- **POC productivity (POC)** — Per–point-of-contact metrics: **productivity = valid RCA ÷ eligible** (eligible = rows with a POC among non-closed data; valid RCA excludes Offline, blank RCA, and “not centralized” / “not centralised”). Optional weekly ratio trends and CSV export.
 - **Dark / light theme** — Toggle in the header; preference is saved in `localStorage`.
 - **Export PDF** — Captures the current screen (header + main) as a PDF via `html2pdf.js` (charts included; very long pages may need the browser **Print → Save as PDF** fallback).
 - **Responsive UI** — Layout tuned for phones, tablets, and desktops (safe areas, touch-friendly controls).

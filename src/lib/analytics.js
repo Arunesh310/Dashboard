@@ -286,7 +286,7 @@ export function sliceLastWeeks(series, maxWeeks) {
 }
 
 /**
- * Valid RCA for POC productivity denominator: not Closed, not Offline,
+ * Valid RCA for POC productivity denominator: not Offline,
  * non-blank RCA, and RCA text does not contain not centralized/centralised.
  */
 export function hasValidRcaForPocProductivity(row) {

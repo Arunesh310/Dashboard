@@ -498,7 +498,8 @@ export default function App() {
   const colMapSafe = colMap ?? detectColumns(fields);
 
   const annotated = useMemo(
-    () => annotateRows(rows, colMapSafe, fields),
+    () =>
+      annotateRows(rows, colMapSafe, fields).filter((r) => r.__kind !== "closed"),
     [rows, colMapSafe, fields]
   );
 
@@ -656,10 +657,10 @@ export default function App() {
     [annotated, filter, colMapSafe.hub]
   );
 
-  /** Problematic RCAs only: not closed, not proper bagging, non-blank; sorted date → Open desc. */
+  /** Problematic RCAs only: not proper bagging, non-blank; sorted date → Open desc. */
   const recentIssuesSorted = useMemo(() => {
     const withRca = filtered.filter((r) => {
-      if (r.__kind === "closed" || r.__kind === "proper_bagging") return false;
+      if (r.__kind === "proper_bagging") return false;
       const text = getRcaValue(r, colMapSafe, fields);
       return text != null && String(text).trim() !== "";
     });
@@ -1483,7 +1484,7 @@ export default function App() {
                         {pocProductivityAggregates.validRca.toLocaleString()}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Denominator (excl. closed, offline, blank, not centralized)
+                        Denominator (excl. offline, blank, not centralized)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1563,7 +1564,7 @@ export default function App() {
                       <span className="font-medium text-slate-800 dark:text-slate-200">Eligible</span> counts every row
                       with a POC. <span className="font-medium text-slate-800 dark:text-slate-200">Valid RCA</span>{" "}
                       (denominator) includes only rows that are not{" "}
-                      <span className="font-medium">Closed</span>, not <span className="font-medium">Offline</span>,
+                      <span className="font-medium">Offline</span>,
                       have non-blank RCA, and whose RCA does not contain{" "}
                       <span className="font-medium">not centralized</span> (or centralised).{" "}
                       <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = valid RCA ÷
@@ -2019,8 +2020,7 @@ export default function App() {
                   </h2>
                   <p className="mt-1 max-w-2xl text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                     Problematic issues only: excludes{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">closed</span>,{" "}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">proper bagging</span>, and
+                    <span className="font-medium text-slate-800 dark:text-slate-200">proper bagging</span> and
                     blank RCAs. Sorted descending:{" "}
                     <span className="font-medium text-slate-800 dark:text-slate-200">
                       {colMapSafe.date
@@ -2069,7 +2069,7 @@ export default function App() {
                           colSpan={10}
                           className="px-2 py-10 text-center text-xs text-slate-500 sm:px-3 sm:text-sm dark:text-slate-500"
                         >
-                          No problematic rows (non-closed, non-proper-bagging, non-blank RCA) for this filter.
+                          No problematic rows (non–proper-bagging, non-blank RCA) for this filter.
                         </td>
                       </tr>
                     ) : (

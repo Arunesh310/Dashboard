@@ -39,8 +39,6 @@ function zoneBadgeClass(zone) {
 }
 
 function rcaBadgeClass(kind) {
-  if (kind === "closed")
-    return "bg-slate-200 text-slate-800 ring-1 ring-slate-300/80 dark:bg-slate-600/40 dark:text-slate-200 dark:ring-slate-500/50";
   if (kind === "partial_bagging")
     return "bg-orange-100 text-orange-950 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-400/35";
   if (kind === "multiple_bagging")
