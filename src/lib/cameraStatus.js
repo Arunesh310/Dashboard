@@ -27,9 +27,28 @@ export function detectCameraStatusColumns(fields) {
     alias: pick("alias", "camera id", "cameraid", "camera"),
     zone: pick("zone"),
     pod: pick("pod", "p o d"),
-    remark: pick("remark", "rca"),
+    remark: pick("remark", "remarks", "rca"),
     status: pick("status"),
   };
+}
+
+/**
+ * Normalize remark text for equality checks: trim, lowercase, collapse spaces,
+ * strip zero-width chars, map UK "centralised" → "centralized".
+ * @param {unknown} raw
+ */
+export function normalizeRemarkForMatch(raw) {
+  return String(raw ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/centralised/g, "centralized");
+}
+
+/** @param {unknown} raw */
+export function isNotCentralizedRemark(raw) {
+  return normalizeRemarkForMatch(raw) === "not centralized";
 }
 
 /** @returns {"online" | "offline" | null} */
@@ -106,13 +125,16 @@ export function summarizeCameras(rows) {
   const total = rows.length;
   let online = 0;
   let offline = 0;
+  let notCentralized = 0;
   for (const r of rows) {
     if (r.isOnline) online++;
     else offline++;
+    if (isNotCentralizedRemark(r.rca)) notCentralized++;
   }
   const offlinePct = total ? (offline / total) * 100 : 0;
   const onlinePct = total ? (online / total) * 100 : 0;
-  return { total, online, offline, offlinePct, onlinePct };
+  const notCentralizedPct = total ? (notCentralized / total) * 100 : 0;
+  return { total, online, offline, offlinePct, onlinePct, notCentralized, notCentralizedPct };
 }
 
 /**

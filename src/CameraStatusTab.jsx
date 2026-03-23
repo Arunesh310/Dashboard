@@ -5,6 +5,7 @@ import {
   aggregatePod,
   aggregateZone,
   filterCameraStatusRows,
+  isNotCentralizedRemark,
   rcaOfflineBreakdownEnriched,
   rcaAllBreakdown,
   summarizeCameras,
@@ -195,6 +196,10 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
   const onlineRows = useMemo(() => filtered.filter((r) => r.isOnline), [filtered]);
   const offlineRows = useMemo(() => filtered.filter((r) => r.isOffline), [filtered]);
+  const notCentralizedRows = useMemo(
+    () => filtered.filter((r) => isNotCentralizedRemark(r.rca)),
+    [filtered]
+  );
 
   const kpis = useMemo(() => summarizeCameras(filtered), [filtered]);
   const zoneAgg = useMemo(() => aggregateZone(filtered), [filtered]);
@@ -287,6 +292,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           Offline: kpis.offline,
           Offline_pct: Math.round(kpis.offlinePct * 100) / 100,
           Online_pct: Math.round(kpis.onlinePct * 100) / 100,
+          Not_centralized: kpis.notCentralized,
+          Not_centralized_pct: Math.round(kpis.notCentralizedPct * 100) / 100,
           Unique_RCA_offline: rcaOfflineEnriched.length,
         },
       ],
@@ -300,6 +307,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         "Offline",
         "Offline_pct",
         "Online_pct",
+        "Not_centralized",
+        "Not_centralized_pct",
         "Unique_RCA_offline",
       ]
     );
@@ -459,25 +468,14 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             dlTitle: "Download offline cameras",
           },
           {
-            title: "Offline %",
-            value: `${kpis.offlinePct.toFixed(1)}%`,
-            sub: "Of current view",
-            icon: "%",
-            tone: "text-orange-600 dark:text-orange-400",
+            title: "Not Centralized",
+            value: kpis.notCentralized ?? 0,
+            sub: `${(kpis.notCentralizedPct ?? 0).toFixed(1)}% of total`,
+            icon: "◎",
+            tone: "text-amber-600 dark:text-amber-400",
             onDl: () =>
-              downloadCsv(
-                "camera-status-offline-rate-summary.csv",
-                [
-                  {
-                    View_total: kpis.total,
-                    Online: kpis.online,
-                    Offline: kpis.offline,
-                    Offline_pct: Math.round(kpis.offlinePct * 100) / 100,
-                  },
-                ],
-                ["View_total", "Online", "Offline", "Offline_pct"]
-              ),
-            dlTitle: "Download offline rate summary (CSV)",
+              onDownloadFiltered(notCentralizedRows, "camera-status-not-centralized.csv"),
+            dlTitle: "Download Not Centralized cameras",
           },
         ].map((k) => (
           <div key={k.title} className="surface-card relative">
