@@ -83,9 +83,37 @@ If no RCA column is found, the **first column** is used for classification (with
 
 A small example file is included at **`public/sample-issues.csv`** (includes POC column for testing productivity).
 
-## Deployment
+## Deployment (share the link + shared CSV)
 
-After `npm run build`, deploy the **`dist/`** folder to any static host (Netlify, Vercel, S3 + CloudFront, GitHub Pages, etc.). Configure the host to serve `index.html` for SPA routes if you add client-side routing later.
+Configs in this repo: **`vercel.json`**, **`netlify.toml`** (build → `dist/`, SPA fallback).
+
+### Option A — Vercel (fastest)
+
+1. **[Deploy to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FArunesh310%2FDashboard&env=VITE_SUPABASE_URL&env=VITE_SUPABASE_ANON_KEY)** (imports this GitHub repo).  
+2. In the import screen, add **Environment variables** (or add them after deploy under **Project → Settings → Environment Variables**):
+   - `VITE_SUPABASE_URL` — Supabase **Project URL**
+   - `VITE_SUPABASE_ANON_KEY` — Supabase **anon public** key  
+3. **Redeploy** after saving env vars (Vite bakes them in at build time).  
+4. In Supabase **SQL Editor**, run **`supabase/schema.sql`** once.  
+5. Open your Vercel URL → upload a CSV. Anyone opening that same URL loads the shared snapshot.
+
+### Option B — Netlify
+
+Connect the GitHub repo, set the same two **`VITE_*`** variables under **Site configuration → Environment variables**, trigger a deploy.
+
+### Verify Supabase locally
+
+After `.env` is filled:
+
+```bash
+npm run check:cloud
+```
+
+You should see `Supabase OK`. If the table is missing, run `supabase/schema.sql` in Supabase.
+
+### Manual static hosting
+
+After `npm run build`, upload **`dist/`** to any static host. You must still configure **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`** in that host’s build environment (or your build will have no cloud sync).
 
 ## License
 
