@@ -285,21 +285,25 @@ export function sliceLastWeeks(series, maxWeeks) {
   return series.slice(-maxWeeks);
 }
 
-/** Closed, offline, blank RCA, or RCA indicating not centralized — excluded from POC productivity pool. */
-export function isExcludedFromPocProductivity(row) {
-  if (row.__kind === "closed" || row.__kind === "offline") return true;
+/**
+ * Valid RCA for POC productivity denominator: not Closed, not Offline,
+ * non-blank RCA, and RCA text does not contain not centralized/centralised.
+ */
+export function hasValidRcaForPocProductivity(row) {
+  if (row.__kind === "closed" || row.__kind === "offline") return false;
   const rca = String(row.__rcaText ?? "").trim();
-  if (!rca) return true;
+  if (!rca) return false;
   const t = rca.toLowerCase();
-  if (t.includes("not centralized") || t.includes("not centralised")) return true;
-  return false;
+  if (t.includes("not centralized") || t.includes("not centralised")) return false;
+  return true;
 }
 
 /**
- * Per-POC productivity: among non-excluded cases, share that are proper bagging (%).
+ * Per-POC productivity: all rows with a POC count as eligible (numerator pool).
+ * Denominator = rows with valid RCA only. Productivity = totalEligible / validRca.
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} pocCol
- * @returns {{ poc: string; eligible: number; proper: number; ratePct: number | null }[]}
+ * @returns {{ poc: string; totalEligible: number; validRca: number; productivityRatio: number | null }[]}
  */
 export function aggregatePocProductivity(rows, pocCol) {
   if (!pocCol) return [];
@@ -309,30 +313,32 @@ export function aggregatePocProductivity(rows, pocCol) {
     const poc =
       raw != null && String(raw).trim() !== "" ? String(raw).trim() : null;
     if (!poc) continue;
-    if (isExcludedFromPocProductivity(r)) continue;
-    const agg = byPoc.get(poc) ?? { eligible: 0, proper: 0 };
-    agg.eligible += 1;
-    if (r.__kind === "proper_bagging") agg.proper += 1;
+    const agg = byPoc.get(poc) ?? { totalEligible: 0, validRca: 0 };
+    agg.totalEligible += 1;
+    if (hasValidRcaForPocProductivity(r)) agg.validRca += 1;
     byPoc.set(poc, agg);
   }
   return [...byPoc.entries()]
-    .map(([poc, { eligible, proper }]) => ({
+    .map(([poc, { totalEligible, validRca }]) => ({
       poc,
-      eligible,
-      proper,
-      ratePct: eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : null,
+      totalEligible,
+      validRca,
+      productivityRatio:
+        validRca > 0
+          ? Math.round((totalEligible / validRca) * 1000) / 1000
+          : null,
     }))
-    .sort((a, b) => b.eligible - a.eligible);
+    .sort((a, b) => b.totalEligible - a.totalEligible);
 }
 
 /**
- * Weekly productivity % for one POC (proper bagging / eligible in that week).
- * `count` is rate % for use with compareLatestWeeks / sparklines.
+ * Weekly productivity ratio for one POC: total cases in week ÷ valid RCA cases in week.
+ * `count` is the ratio for compareLatestWeeks / sparklines (y-axis).
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} dateCol
  * @param {string | null} pocCol
  * @param {string} pocValue
- * @returns {{ weekKey: string; label: string; count: number; eligible: number; proper: number }[]}
+ * @returns {{ weekKey: string; label: string; count: number; totalEligible: number; validRca: number }[]}
  */
 export function buildWeeklyProductivitySeriesForPoc(
   rows,
@@ -350,23 +356,25 @@ export function buildWeeklyProductivitySeriesForPoc(
     if (poc !== target) continue;
     const dt = parseFlexibleDate(r[dateCol]);
     if (!dt) continue;
-    if (isExcludedFromPocProductivity(r)) continue;
     const wk = weekKeyFromDate(dt);
-    const cur = byWeek.get(wk) ?? { eligible: 0, proper: 0 };
-    cur.eligible += 1;
-    if (r.__kind === "proper_bagging") cur.proper += 1;
+    const cur = byWeek.get(wk) ?? { totalEligible: 0, validRca: 0 };
+    cur.totalEligible += 1;
+    if (hasValidRcaForPocProductivity(r)) cur.validRca += 1;
     byWeek.set(wk, cur);
   }
   return [...byWeek.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([weekKey, { eligible, proper }]) => ({
+    .map(([weekKey, { totalEligible, validRca }]) => ({
       weekKey,
       label: shortWeekLabel(weekKey),
-      eligible,
-      proper,
-      count: eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : 0,
+      totalEligible,
+      validRca,
+      count:
+        validRca > 0
+          ? Math.round((totalEligible / validRca) * 1000) / 1000
+          : 0,
     }))
-    .filter((x) => x.eligible > 0);
+    .filter((x) => x.validRca > 0);
 }
 
 const TREND_KINDS = ["partial_bagging", "lm_fraud", "camera_issues"];

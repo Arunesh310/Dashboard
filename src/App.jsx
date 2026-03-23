@@ -332,6 +332,7 @@ function TrendSparkline({
   datasetLabel = "Cases",
   valueSuffix = "",
   ySuggestedMax,
+  yTickPrecision,
 }) {
   const { isDark } = useTheme();
   const trimmed = useMemo(() => sliceLastWeeks(series, 10), [series]);
@@ -377,8 +378,12 @@ function TrendSparkline({
               const i = ctx.dataIndex;
               const pt = trimmed[i];
               const v = ctx.parsed.y;
-              if (pt && typeof pt.eligible === "number" && typeof pt.proper === "number") {
-                return `Productivity: ${v}% (${pt.proper}/${pt.eligible} proper)`;
+              if (
+                pt &&
+                typeof pt.totalEligible === "number" &&
+                typeof pt.validRca === "number"
+              ) {
+                return `Productivity: ${v}× (${pt.totalEligible.toLocaleString()} eligible / ${pt.validRca.toLocaleString()} valid RCA)`;
               }
               return valueSuffix
                 ? `${datasetLabel}: ${v}${valueSuffix}`
@@ -401,7 +406,9 @@ function TrendSparkline({
           beginAtZero: true,
           suggestedMax: ySuggestedMax,
           ticks: {
-            precision: ySuggestedMax != null ? 1 : 0,
+            precision:
+              yTickPrecision ??
+              (ySuggestedMax != null ? 1 : 0),
             font: { size: 10 },
             color: isDark ? "#94a3b8" : "#64748b",
           },
@@ -411,7 +418,7 @@ function TrendSparkline({
         },
       },
     }),
-    [trimmed, isDark, datasetLabel, valueSuffix, ySuggestedMax]
+    [trimmed, isDark, datasetLabel, valueSuffix, ySuggestedMax, yTickPrecision]
   );
 
   if (!trimmed.length) {
@@ -548,17 +555,19 @@ export default function App() {
   );
 
   const pocProductivityAggregates = useMemo(() => {
-    let eligible = 0;
-    let proper = 0;
+    let totalEligible = 0;
+    let validRca = 0;
     for (const r of pocProductivityList) {
-      eligible += r.eligible;
-      proper += r.proper;
+      totalEligible += r.totalEligible;
+      validRca += r.validRca;
     }
     return {
-      totalEligible: eligible,
-      totalProper: proper,
-      overallRatePct:
-        eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : null,
+      totalEligible,
+      validRca,
+      overallProductivityRatio:
+        validRca > 0
+          ? Math.round((totalEligible / validRca) * 1000) / 1000
+          : null,
       pocCount: pocProductivityList.length,
     };
   }, [pocProductivityList]);
@@ -1240,11 +1249,11 @@ export default function App() {
                           "poc-productivity-summary.csv",
                           pocProductivityList.map((r) => ({
                             poc: r.poc,
-                            eligible: r.eligible,
-                            proper: r.proper,
-                            rate_pct: r.ratePct ?? "",
+                            total_eligible: r.totalEligible,
+                            valid_rca: r.validRca,
+                            productivity_ratio: r.productivityRatio ?? "",
                           })),
-                          ["poc", "eligible", "proper", "rate_pct"]
+                          ["poc", "total_eligible", "valid_rca", "productivity_ratio"]
                         )
                       }
                     />
@@ -1261,7 +1270,7 @@ export default function App() {
                 </p>
               ) : pocProductivityList.length === 0 ? (
                 <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                  No eligible cases after exclusions (every row may be closed, offline, blank, or not centralized).
+                  No rows with a POC value in column <strong>{colMapSafe.poc}</strong>.
                 </p>
               ) : (
                 <>
@@ -1271,12 +1280,12 @@ export default function App() {
                         Overall productivity
                       </p>
                       <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                        {pocProductivityAggregates.overallRatePct != null
-                          ? `${pocProductivityAggregates.overallRatePct}%`
+                        {pocProductivityAggregates.overallProductivityRatio != null
+                          ? `${pocProductivityAggregates.overallProductivityRatio}×`
                           : "—"}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Proper ÷ all eligible (all POCs)
+                        Total eligible ÷ valid RCA (all POCs combined)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1287,18 +1296,18 @@ export default function App() {
                         {pocProductivityAggregates.totalEligible.toLocaleString()}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        After exclusions
+                        All cases with a POC (numerator)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        Total proper bagging
+                        Valid RCA cases
                       </p>
                       <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                        {pocProductivityAggregates.totalProper.toLocaleString()}
+                        {pocProductivityAggregates.validRca.toLocaleString()}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Numerator
+                        Denominator (excl. closed, offline, blank, not centralized)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1309,7 +1318,7 @@ export default function App() {
                         {pocProductivityAggregates.pocCount.toLocaleString()}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        With ≥1 eligible row
+                        With ≥1 case assigned
                       </p>
                     </div>
                   </div>
@@ -1338,7 +1347,7 @@ export default function App() {
                           <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-400">
                             <th className="px-3 py-2.5">POC</th>
                             <th className="px-3 py-2.5 text-right tabular-nums">Eligible</th>
-                            <th className="px-3 py-2.5 text-right tabular-nums">Proper</th>
+                            <th className="px-3 py-2.5 text-right tabular-nums">Valid RCA</th>
                             <th className="px-3 py-2.5 text-right tabular-nums">Productivity</th>
                           </tr>
                         </thead>
@@ -1352,13 +1361,13 @@ export default function App() {
                                 {row.poc}
                               </td>
                               <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                                {row.eligible.toLocaleString()}
+                                {row.totalEligible.toLocaleString()}
                               </td>
                               <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                                {row.proper.toLocaleString()}
+                                {row.validRca.toLocaleString()}
                               </td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                                {row.ratePct != null ? `${row.ratePct}%` : "—"}
+                                {row.productivityRatio != null ? `${row.productivityRatio}×` : "—"}
                               </td>
                             </tr>
                           ))}
@@ -1375,17 +1384,19 @@ export default function App() {
                     className={pocProductivityExpanded ? "mt-5 border-t border-slate-200/90 pt-5 dark:border-slate-700/60" : "hidden"}
                   >
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Eligible pool</span> per POC
-                      excludes <span className="font-medium">Closed</span>,{" "}
-                      <span className="font-medium">Offline</span>, blank RCA, and RCA containing{" "}
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Eligible</span> counts every row
+                      with a POC. <span className="font-medium text-slate-800 dark:text-slate-200">Valid RCA</span>{" "}
+                      (denominator) includes only rows that are not{" "}
+                      <span className="font-medium">Closed</span>, not <span className="font-medium">Offline</span>,
+                      have non-blank RCA, and whose RCA does not contain{" "}
                       <span className="font-medium">not centralized</span> (or centralised).{" "}
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> is proper
-                      bagging ÷ eligible. Week-over-week compares the latest two weeks with eligible volume. Based on
-                      all loaded rows.
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = eligible ÷
+                      valid RCA (ratio; can exceed 1×). Week-over-week compares the latest two weeks that have valid RCA
+                      volume. Based on all loaded rows.
                     </p>
                     {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
                       <p className="mt-3 text-xs text-slate-500 dark:text-slate-500">
-                        Charts: top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by eligible volume (
+                        Charts: top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by total case count (
                         {pocProductivityList.length} total in table above).
                       </p>
                     ) : null}
@@ -1405,9 +1416,9 @@ export default function App() {
                             : {
                                 direction: "none",
                                 summary: colMapSafe.date
-                                  ? "No weekly eligible rows with parseable dates"
+                                  ? "No weekly rows with valid RCA & parseable dates"
                                   : "Add a date column for weekly trends",
-                                last: row.ratePct ?? 0,
+                                last: row.productivityRatio ?? 0,
                                 prev: null,
                               };
                         const colors = POC_SPARKLINE_PALETTE[idx % POC_SPARKLINE_PALETTE.length];
@@ -1423,16 +1434,16 @@ export default function App() {
                               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                                 Eligible{" "}
                                 <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                                  {row.eligible.toLocaleString()}
+                                  {row.totalEligible.toLocaleString()}
                                 </span>
                                 {" · "}
-                                Proper{" "}
+                                Valid RCA{" "}
                                 <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                                  {row.proper.toLocaleString()}
+                                  {row.validRca.toLocaleString()}
                                 </span>
                                 {" · "}
                                 <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                  {row.ratePct != null ? `${row.ratePct}%` : "—"}
+                                  {row.productivityRatio != null ? `${row.productivityRatio}×` : "—"}
                                 </span>
                               </p>
                               <p
@@ -1450,13 +1461,13 @@ export default function App() {
                                   borderColor={colors.border}
                                   fillColor={colors.fill}
                                   datasetLabel="Productivity"
-                                  ySuggestedMax={100}
+                                  yTickPrecision={3}
                                 />
                               ) : (
                                 <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">
                                   {colMapSafe.date
-                                    ? "No weekly eligible rows with parseable dates for this POC."
-                                    : "Add a date column to chart weekly productivity %."}
+                                    ? "No weekly rows with valid RCA & parseable dates for this POC."
+                                    : "Add a date column to chart weekly productivity ratio."}
                                 </div>
                               )}
                             </div>
