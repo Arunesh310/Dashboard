@@ -248,6 +248,12 @@ function stripExportRows(rows, fields) {
 const HOTSPOTS_INITIAL_VISIBLE = 5;
 const POC_PRODUCTIVITY_CARD_LIMIT = 10;
 
+/** validRca ÷ eligible as ratio → display percent */
+function formatPocProductivityPercent(ratio) {
+  if (ratio == null || !Number.isFinite(ratio)) return "—";
+  return `${(ratio * 100).toFixed(1)}%`;
+}
+
 const POC_SPARKLINE_PALETTE = [
   { border: "rgb(13 148 136)", fill: "rgba(13, 148, 136, 0.14)" },
   { border: "rgb(79 70 229)", fill: "rgba(79, 70, 229, 0.14)" },
@@ -406,7 +412,7 @@ function TrendSparkline({
                 typeof pt.totalEligible === "number" &&
                 typeof pt.validRca === "number"
               ) {
-                return `Productivity: ${v}× (${pt.validRca.toLocaleString()} valid RCA / ${pt.totalEligible.toLocaleString()} eligible)`;
+                return `Productivity: ${typeof v === "number" ? v.toFixed(1) : v}% (${pt.validRca.toLocaleString()} valid RCA / ${pt.totalEligible.toLocaleString()} eligible)`;
               }
               return valueSuffix
                 ? `${datasetLabel}: ${v}${valueSuffix}`
@@ -1468,9 +1474,12 @@ export default function App() {
                             poc: r.poc,
                             total_eligible: r.totalEligible,
                             valid_rca: r.validRca,
-                            productivity_ratio: r.productivityRatio ?? "",
+                            productivity_pct:
+                              r.productivityRatio != null
+                                ? Math.round(r.productivityRatio * 10000) / 100
+                                : "",
                           })),
-                          ["poc", "total_eligible", "valid_rca", "productivity_ratio"]
+                          ["poc", "total_eligible", "valid_rca", "productivity_pct"]
                         )
                       }
                     />
@@ -1497,12 +1506,10 @@ export default function App() {
                         Overall productivity
                       </p>
                       <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                        {pocProductivityAggregates.overallProductivityRatio != null
-                          ? `${pocProductivityAggregates.overallProductivityRatio}×`
-                          : "—"}
+                        {formatPocProductivityPercent(pocProductivityAggregates.overallProductivityRatio)}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Valid RCA ÷ total eligible (all POCs combined)
+                        (Valid RCA ÷ total eligible) × 100 — all POCs combined
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1565,7 +1572,7 @@ export default function App() {
                             <th className="px-3 py-2.5">POC</th>
                             <th className="px-3 py-2.5 text-right tabular-nums">Eligible</th>
                             <th className="px-3 py-2.5 text-right tabular-nums">Valid RCA</th>
-                            <th className="px-3 py-2.5 text-right tabular-nums">Productivity</th>
+                            <th className="px-3 py-2.5 text-right tabular-nums">Productivity %</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1584,7 +1591,7 @@ export default function App() {
                                 {row.validRca.toLocaleString()}
                               </td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                                {row.productivityRatio != null ? `${row.productivityRatio}×` : "—"}
+                                {formatPocProductivityPercent(row.productivityRatio)}
                               </td>
                             </tr>
                           ))}
@@ -1608,8 +1615,8 @@ export default function App() {
                       have non-blank RCA, and whose RCA does not contain{" "}
                       <span className="font-medium">not centralized</span> (or centralised), or{" "}
                       <span className="font-medium">backup issue</span>.{" "}
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = valid RCA ÷
-                      eligible (ratio). Week-over-week compares the latest two weeks that have valid RCA
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = (valid RCA ÷
+                      eligible) × 100 (percentage). Week-over-week compares the latest two weeks that have valid RCA
                       volume. Based on all loaded rows.
                     </p>
                     {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
@@ -1636,7 +1643,10 @@ export default function App() {
                                 summary: colMapSafe.date
                                   ? "No weekly rows with valid RCA & parseable dates"
                                   : "Add a date column for weekly trends",
-                                last: row.productivityRatio ?? 0,
+                                last:
+                                  row.productivityRatio != null
+                                    ? row.productivityRatio * 100
+                                    : 0,
                                 prev: null,
                               };
                         const colors = POC_SPARKLINE_PALETTE[idx % POC_SPARKLINE_PALETTE.length];
@@ -1661,7 +1671,7 @@ export default function App() {
                                 </span>
                                 {" · "}
                                 <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                  {row.productivityRatio != null ? `${row.productivityRatio}×` : "—"}
+                                  {formatPocProductivityPercent(row.productivityRatio)}
                                 </span>
                               </p>
                               <p
@@ -1678,8 +1688,9 @@ export default function App() {
                                   series={series}
                                   borderColor={colors.border}
                                   fillColor={colors.fill}
-                                  datasetLabel="Productivity"
-                                  yTickPrecision={3}
+                                  datasetLabel="Productivity %"
+                                  yTickPrecision={1}
+                                  ySuggestedMax={100}
                                 />
                               ) : (
                                 <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">

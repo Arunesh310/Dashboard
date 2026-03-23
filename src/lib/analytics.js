@@ -412,7 +412,7 @@ export function aggregatePocProductivity(rows, pocCol) {
 
 /**
  * Weekly productivity ratio for one POC: valid RCA cases in week ÷ total cases in week.
- * `count` is the ratio for compareLatestWeeks / sparklines (y-axis).
+ * `count` is productivity as a percentage (valid RCA ÷ eligible × 100) for sparklines / compareLatestWeeks.
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} dateCol
  * @param {string | null} pocCol
@@ -450,7 +450,7 @@ export function buildWeeklyProductivitySeriesForPoc(
       validRca,
       count:
         totalEligible > 0
-          ? Math.round((validRca / totalEligible) * 1000) / 1000
+          ? Math.round((validRca / totalEligible) * 1000) / 10
           : 0,
     }))
     .filter((x) => x.validRca > 0);
