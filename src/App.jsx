@@ -497,10 +497,29 @@ export default function App() {
 
   const colMapSafe = colMap ?? detectColumns(fields);
 
+  const normalizedRows = useMemo(() => {
+    const manifestCol = colMapSafe.manifest;
+    if (!manifestCol) return rows;
+    const pocCol = colMapSafe.poc;
+    const seen = new Set();
+    const unique = [];
+    for (const r of rows) {
+      const manifestId = String(r[manifestCol] ?? "").trim();
+      if (!manifestId) continue;
+      const remark = getRcaValue(r, colMapSafe, fields).trim().toLowerCase();
+      const poc = pocCol ? String(r[pocCol] ?? "").trim().toLowerCase() : "";
+      const key = `${manifestId}||${remark}||${poc}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(r);
+    }
+    return unique;
+  }, [rows, colMapSafe, fields]);
+
   const annotated = useMemo(
     () =>
-      annotateRows(rows, colMapSafe, fields).filter((r) => r.__kind !== "closed"),
-    [rows, colMapSafe, fields]
+      annotateRows(normalizedRows, colMapSafe, fields).filter((r) => r.__kind !== "closed"),
+    [normalizedRows, colMapSafe, fields]
   );
 
   const filtered = useMemo(
@@ -510,8 +529,19 @@ export default function App() {
 
   const counts = useMemo(() => countByKind(annotated), [annotated]);
 
+  const uniqueManifestCount = useMemo(() => {
+    const manifestCol = colMapSafe.manifest;
+    if (!manifestCol) return null;
+    const manifests = new Set();
+    for (const r of annotated) {
+      const code = String(r[manifestCol] ?? "").trim();
+      if (code) manifests.add(code);
+    }
+    return manifests.size;
+  }, [annotated, colMapSafe.manifest]);
+
   const kpis = useMemo(() => {
-    const total = annotated.length;
+    const total = uniqueManifestCount ?? annotated.length;
     const proper = counts.proper_bagging;
     const partial = counts.partial_bagging;
     const fraud = counts.lm_fraud;
@@ -537,7 +567,7 @@ export default function App() {
       properRate: total ? ((proper / total) * 100).toFixed(1) : "0",
       issueRate: total ? ((issueLike / total) * 100).toFixed(1) : "0",
     };
-  }, [annotated, counts]);
+  }, [annotated, counts, uniqueManifestCount]);
 
   const weeklyByIssue = useMemo(() => {
     const dc = colMapSafe.date;
@@ -1263,7 +1293,9 @@ export default function App() {
                 {
                   title: "Total Records",
                   value: kpis.total,
-                  sub: "All loaded rows",
+                  sub: colMapSafe.manifest
+                    ? `Unique ${colMapSafe.manifest} values`
+                    : "All loaded rows",
                   icon: "📊",
                   tone: "text-blue-600 dark:text-blue-400",
                   dl: () =>
