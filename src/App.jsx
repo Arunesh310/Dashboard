@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme.jsx";
 import Papa from "papaparse";
 import {
@@ -86,6 +86,26 @@ function UploadIcon({ className = "h-5 w-5" }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PdfIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path
+        d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -452,6 +472,8 @@ export default function App() {
   const [dataTableCategory, setDataTableCategory] = useState("all");
   const [dataTablePage, setDataTablePage] = useState(0);
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const exportRootRef = useRef(null);
 
   useEffect(() => {
     ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
@@ -805,6 +827,55 @@ export default function App() {
     setActiveTab("dashboard");
   }, []);
 
+  const handleExportPdf = useCallback(async () => {
+    const el = exportRootRef.current;
+    if (!el) return;
+    setPdfExporting(true);
+    try {
+      window.scrollTo(0, 0);
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      );
+      const { default: html2pdf } = await import("html2pdf.js");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      await html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename: `cctv-dashboard-${stamp}.pdf`,
+          image: { type: "jpeg", quality: 0.95 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            scrollY: -window.scrollY,
+            scrollX: -window.scrollX,
+            ignoreElements: (node) =>
+              node instanceof HTMLElement &&
+              node.getAttribute("data-html2pdf-ignore") === "true",
+            onclone: (clonedDoc) => {
+              clonedDoc.querySelectorAll("header").forEach((h) => {
+                h.style.position = "relative";
+                h.style.top = "0";
+                h.style.zIndex = "0";
+              });
+            },
+          },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["css", "legacy"] },
+        })
+        .from(el)
+        .save();
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Could not create the PDF. If the page is very long, try zooming out or use the browser Print dialog → Save as PDF."
+      );
+    } finally {
+      setPdfExporting(false);
+    }
+  }, []);
+
   const handleFile = useCallback((file) => {
     if (!file?.name?.toLowerCase().endsWith(".csv")) {
       setError("Please upload a .csv file.");
@@ -835,7 +906,10 @@ export default function App() {
   const missingDate = annotated.length > 0 && !colMapSafe.date;
 
   return (
-    <div className="min-h-screen bg-slate-50 transition-colors duration-200 dark:bg-slate-950">
+    <div
+      ref={exportRootRef}
+      className="min-h-screen bg-slate-50 transition-colors duration-200 dark:bg-slate-950"
+    >
       <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 text-slate-900 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="min-w-0 shrink-0">
@@ -901,6 +975,21 @@ export default function App() {
               />
             </label>
             <ThemeToggle />
+            <button
+              type="button"
+              data-html2pdf-ignore="true"
+              onClick={handleExportPdf}
+              disabled={pdfExporting}
+              aria-busy={pdfExporting}
+              title="Download this page as PDF (layout, charts, and tables as shown)"
+              className="btn-header-ghost"
+            >
+              <PdfIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {pdfExporting ? "Building PDF…" : "Export PDF"}
+              </span>
+              <span className="sm:hidden">{pdfExporting ? "…" : "PDF"}</span>
+            </button>
             <button
               type="button"
               onClick={handleReset}
