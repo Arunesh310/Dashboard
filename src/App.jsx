@@ -1018,7 +1018,7 @@ export default function App() {
         <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-3 px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="min-w-0 flex-1">
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 xs:text-lg sm:text-xl">
-              LM ODC CCTV Dashboard
+              LM ODC - CCTV Dashboard
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
               {isSupabaseConfigured()
