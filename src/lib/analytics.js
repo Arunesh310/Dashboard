@@ -172,8 +172,12 @@ export function weekKeyFromDate(date) {
 export function shortWeekLabel(weekKey) {
   const [y, m, day] = weekKey.split("-").map(Number);
   if (!y || !m || !day) return weekKey;
-  const d = new Date(y, m - 1, day);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const d = new Date(y, m - 1, day, 12, 0, 0, 0);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /**
@@ -183,6 +187,17 @@ export function shortWeekLabel(weekKey) {
 export function parseFlexibleDate(raw) {
   if (raw == null || String(raw).trim() === "") return null;
   const s = String(raw).trim();
+
+  // Any string starting YYYY-MM-DD — local calendar date (avoids UTC midnight shifting day/week)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const y = +iso[1];
+    const mo = +iso[2];
+    const d = +iso[3];
+    const dt = new Date(y, mo - 1, d, 12, 0, 0, 0);
+    if (!Number.isNaN(dt.getTime())) return dt;
+  }
+
   if (/^\d+$/.test(s)) {
     const n = Number(s);
     if (n > 25000 && n < 65000) {
@@ -191,29 +206,69 @@ export function parseFlexibleDate(raw) {
       if (!Number.isNaN(d.getTime())) return d;
     }
   }
-  let d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d;
-  const m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
-  if (m) {
-    let a = +m[1];
-    let b = +m[2];
-    let y = +m[3];
+
+  const slash = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (slash) {
+    const a = +slash[1];
+    const b = +slash[2];
+    let y = +slash[3];
     if (y < 100) y += 2000;
-    d = new Date(y, b - 1, a);
-    if (!Number.isNaN(d.getTime())) return d;
-    d = new Date(y, a - 1, b);
-    if (!Number.isNaN(d.getTime())) return d;
+    let day;
+    let month;
+    if (a > 12) {
+      day = a;
+      month = b;
+    } else if (b > 12) {
+      month = a;
+      day = b;
+    } else {
+      day = a;
+      month = b;
+    }
+    const dt = new Date(y, month - 1, day, 12, 0, 0, 0);
+    if (!Number.isNaN(dt.getTime()) && dt.getFullYear() === y) return dt;
   }
+
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d;
   return null;
+}
+
+/**
+ * Contiguous Monday week keys from earliest to latest week seen in `dateCol` (any row).
+ */
+export function getFilledWeekKeysBetweenMinMax(rows, dateCol) {
+  if (!dateCol) return [];
+  let minW = null;
+  let maxW = null;
+  for (const r of rows) {
+    const dt = parseFlexibleDate(r[dateCol]);
+    if (!dt) continue;
+    const wk = weekKeyFromDate(dt);
+    if (!minW || wk < minW) minW = wk;
+    if (!maxW || wk > maxW) maxW = wk;
+  }
+  if (!minW || !maxW) return [];
+  const keys = [];
+  const [y0, m0, d0] = minW.split("-").map(Number);
+  let cur = new Date(y0, m0 - 1, d0, 12, 0, 0, 0);
+  const [y1, m1, d1] = maxW.split("-").map(Number);
+  const end = new Date(y1, m1 - 1, d1, 12, 0, 0, 0);
+  while (cur <= end) {
+    keys.push(formatYMDLocal(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  return keys;
 }
 
 /**
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} dateCol
  * @param {string} kind
+ * @param {string[] | null | undefined} weekKeysFilled If set, one point per week (zeros filled); same keys for every chart.
  * @returns {{ weekKey: string; label: string; count: number }[]}
  */
-export function buildWeeklySeriesForKind(rows, dateCol, kind) {
+export function buildWeeklySeriesForKind(rows, dateCol, kind, weekKeysFilled) {
   if (!dateCol) return [];
   const map = new Map();
   for (const r of rows) {
@@ -223,13 +278,15 @@ export function buildWeeklySeriesForKind(rows, dateCol, kind) {
     const key = weekKeyFromDate(dt);
     map.set(key, (map.get(key) ?? 0) + 1);
   }
-  return [...map.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([weekKey, count]) => ({
-      weekKey,
-      label: shortWeekLabel(weekKey),
-      count,
-    }));
+  const keys =
+    weekKeysFilled != null && weekKeysFilled.length
+      ? weekKeysFilled
+      : [...map.keys()].sort((a, b) => a.localeCompare(b));
+  return keys.map((weekKey) => ({
+    weekKey,
+    label: shortWeekLabel(weekKey),
+    count: map.get(weekKey) ?? 0,
+  }));
 }
 
 /**
@@ -246,8 +303,19 @@ export function compareLatestWeeks(series) {
       pct: null,
     };
   }
-  const last = series[series.length - 1];
-  if (series.length < 2) {
+  const withData = series.filter((x) => x.count > 0);
+  if (withData.length === 0) {
+    return {
+      direction: "none",
+      summary: "No cases in weeks shown",
+      last: 0,
+      prev: null,
+      delta: null,
+      pct: null,
+    };
+  }
+  if (withData.length < 2) {
+    const last = withData[withData.length - 1];
     return {
       direction: "baseline",
       summary: `${last.count} in week of ${last.label} · add more weeks to see trend`,
@@ -257,7 +325,8 @@ export function compareLatestWeeks(series) {
       pct: null,
     };
   }
-  const prev = series[series.length - 2];
+  const last = withData[withData.length - 1];
+  const prev = withData[withData.length - 2];
   const delta = last.count - prev.count;
   const pct =
     prev.count === 0
@@ -396,14 +465,13 @@ const TREND_KINDS = ["partial_bagging", "lm_fraud", "camera_issues"];
  */
 export function buildWeeklyPivotRows(rows, dateCol) {
   if (!dateCol) return [];
+  const weekKeys = getFilledWeekKeysBetweenMinMax(rows, dateCol);
+  if (!weekKeys.length) return [];
   const byKind = {};
-  const weekSet = new Set();
   for (const k of TREND_KINDS) {
-    byKind[k] = buildWeeklySeriesForKind(rows, dateCol, k);
-    byKind[k].forEach((x) => weekSet.add(x.weekKey));
+    byKind[k] = buildWeeklySeriesForKind(rows, dateCol, k, weekKeys);
   }
-  const weeks = [...weekSet].sort();
-  return weeks.map((wk) => {
+  return weekKeys.map((wk) => {
     const row = { week_start: wk };
     for (const k of TREND_KINDS) {
       const hit = byKind[k].find((x) => x.weekKey === wk);

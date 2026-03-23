@@ -28,6 +28,7 @@ import {
   compareLatestWeeks,
   sliceLastWeeks,
   buildWeeklyPivotRows,
+  getFilledWeekKeysBetweenMinMax,
   parseFlexibleDate,
   filterRowsForHotspots,
   ISSUE_KIND_LABELS,
@@ -569,6 +570,12 @@ export default function App() {
     };
   }, [annotated, counts, uniqueManifestCount]);
 
+  const weeklyWeekKeys = useMemo(() => {
+    const dc = colMapSafe.date;
+    if (!dc) return [];
+    return getFilledWeekKeysBetweenMinMax(annotated, dc);
+  }, [annotated, colMapSafe.date]);
+
   const weeklyByIssue = useMemo(() => {
     const dc = colMapSafe.date;
     if (!dc) {
@@ -579,13 +586,14 @@ export default function App() {
         camera: [],
       };
     }
+    const wk = weeklyWeekKeys.length ? weeklyWeekKeys : null;
     return {
       dateCol: dc,
-      partial: buildWeeklySeriesForKind(annotated, dc, "partial_bagging"),
-      fraud: buildWeeklySeriesForKind(annotated, dc, "lm_fraud"),
-      camera: buildWeeklySeriesForKind(annotated, dc, "camera_issues"),
+      partial: buildWeeklySeriesForKind(annotated, dc, "partial_bagging", wk ?? undefined),
+      fraud: buildWeeklySeriesForKind(annotated, dc, "lm_fraud", wk ?? undefined),
+      camera: buildWeeklySeriesForKind(annotated, dc, "camera_issues", wk ?? undefined),
     };
-  }, [annotated, colMapSafe.date]);
+  }, [annotated, colMapSafe.date, weeklyWeekKeys]);
 
   const weeklyParseableCount = useMemo(() => {
     const dc = colMapSafe.date;
