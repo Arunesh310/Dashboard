@@ -296,7 +296,7 @@ export function compareLatestWeeks(series) {
   if (!series.length) {
     return {
       direction: "none",
-      summary: "No dated rows for this issue type",
+      summary: "No data",
       last: 0,
       prev: null,
       delta: null,
@@ -307,7 +307,7 @@ export function compareLatestWeeks(series) {
   if (withData.length === 0) {
     return {
       direction: "none",
-      summary: "No cases in weeks shown",
+      summary: "No data",
       last: 0,
       prev: null,
       delta: null,
@@ -318,7 +318,7 @@ export function compareLatestWeeks(series) {
     const last = withData[withData.length - 1];
     return {
       direction: "baseline",
-      summary: `${last.count} in week of ${last.label} · add more weeks to see trend`,
+      summary: `${last.count} · week of ${last.label}`,
       last: last.count,
       prev: null,
       delta: null,

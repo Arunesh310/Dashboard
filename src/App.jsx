@@ -482,7 +482,7 @@ function TrendSparkline({
   if (!trimmed.length) {
     return (
       <div className="flex h-36 items-center justify-center text-xs text-slate-500 dark:text-slate-500">
-        No weekly data yet
+        No data
       </div>
     );
   }
@@ -1199,9 +1199,6 @@ export default function App() {
     return annotated.filter((r) => r.__kind === id).length;
   };
 
-  const missingRca = !colMapSafe.rca;
-  const missingDate = annotated.length > 0 && !colMapSafe.date;
-
   return (
     <div
       ref={exportRootRef}
@@ -1219,8 +1216,8 @@ export default function App() {
                   ? "Loading shared snapshot from Supabase…"
                   : cloudSyncing
                     ? "Saving snapshot to Supabase…"
-                    : "Cloud sync — dashboard CSV and Camera Status CSV are shared with everyone using this app"
-                : "Real-time monitoring · local analysis"}
+                    : "Cloud sync"
+                : "Local"}
             </p>
             {cloudUpdatedAt && isSupabaseConfigured() && !cloudLoading ? (
               <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
@@ -1426,33 +1423,8 @@ export default function App() {
             {!annotated.length ? (
               <div className="surface-card px-4 py-8 text-center text-sm text-slate-600 sm:px-6 sm:py-10 dark:text-slate-400">
                 <p className="font-medium text-slate-800 dark:text-slate-100">No file loaded</p>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                  Use the <strong className="text-slate-900 dark:text-slate-200">upload</strong> button in
-                  the header to choose a CSV. Typical columns:{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">RCA</strong>,{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">Hub</strong>,{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">Zone</strong>,{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">Manifest</strong>, optional{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">Date</strong> for weekly trends.
-                </p>
               </div>
             ) : null}
-
-            {missingRca && annotated.length ? (
-          <div className="rounded-xl border border-amber-200/90 bg-amber-50/95 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-100">
-            No <strong>RCA</strong> column detected. Classification uses the first column:{" "}
-            <strong>{fields[0]}</strong>. Rename or add an RCA column for best results.
-          </div>
-        ) : null}
-
-        {missingDate && annotated.length ? (
-          <div className="rounded-xl border border-dashed border-slate-300/90 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-600/60 dark:bg-slate-900/60 dark:text-slate-300">
-            Add a <strong className="text-slate-800 dark:text-slate-100">Date</strong> column (aliases:{" "}
-            <em>Created</em>, <em>Reported</em>, <em>Event date</em>, <em>Timestamp</em>, …) to unlock{" "}
-            <span className="font-medium text-slate-800 dark:text-slate-100">week-over-week trends</span>{" "}
-            for Partial Bagging, LM Fraud, and Camera issues.
-          </div>
-        ) : null}
 
         {annotated.length ? (
           <>
@@ -1697,9 +1669,6 @@ export default function App() {
                       POC productivity{" "}
                       <span className="font-semibold text-slate-500 dark:text-slate-400">(POC)</span>
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-500 sm:text-xs">
-                      {pocProductivityExpanded ? "Hide" : "Show"} charts
-                    </span>
                   </span>
                 </button>
                 <div
@@ -1734,16 +1703,9 @@ export default function App() {
               </div>
 
               {!colMapSafe.poc ? (
-                <p className="mt-4 rounded-xl border border-dashed border-slate-300/90 bg-slate-50/80 px-4 py-6 text-sm text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/30 dark:text-slate-400">
-                  Add a column named <strong className="text-slate-800 dark:text-slate-200">POC</strong>,{" "}
-                  <strong className="text-slate-800 dark:text-slate-200">Point of contact</strong>,{" "}
-                  <strong className="text-slate-800 dark:text-slate-200">Owner</strong>, or{" "}
-                  <strong className="text-slate-800 dark:text-slate-200">Assignee</strong> to enable this view.
-                </p>
+                <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No data</p>
               ) : pocProductivityList.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                  No rows with a POC value in column <strong>{colMapSafe.poc}</strong>.
-                </p>
+                <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No data.</p>
               ) : (
                 <>
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1839,9 +1801,7 @@ export default function App() {
                             ? compareLatestWeeks(sliceLastWeeks(series, 52))
                             : {
                                 direction: "none",
-                                summary: colMapSafe.date
-                                  ? "No weekly rows with valid RCA & parseable dates"
-                                  : "Add a date column for weekly trends",
+                                summary: "—",
                                 last:
                                   row.productivityRatio != null
                                     ? row.productivityRatio * 100
@@ -1893,9 +1853,7 @@ export default function App() {
                                 />
                               ) : (
                                 <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">
-                                  {colMapSafe.date
-                                    ? "No weekly rows with valid RCA & parseable dates for this POC."
-                                    : "Add a date column to chart weekly productivity ratio."}
+                                  No data
                                 </div>
                               )}
                             </div>
@@ -2045,7 +2003,7 @@ export default function App() {
                 <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
                   {zonePairs.length ? <Doughnut data={donutData} options={donutOptions} /> : (
                     <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-                      No zone column or empty filter.
+                      No data
                     </p>
                   )}
                 </div>
@@ -2107,7 +2065,7 @@ export default function App() {
                   />
                 ) : (
                   <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-                    No data for current filter.
+                    No data
                   </p>
                 )}
               </div>
@@ -2287,7 +2245,7 @@ export default function App() {
                           colSpan={10}
                           className="px-2 py-10 text-center text-xs text-slate-500 sm:px-3 sm:text-sm dark:text-slate-500"
                         >
-                          No problematic rows (non–proper-bagging, non-blank RCA) for this filter.
+                          No data
                         </td>
                       </tr>
                     ) : (
@@ -2424,7 +2382,7 @@ function ChartCard({
           />
         ) : (
           <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-            No rows for this issue with the current filter.
+            No data
           </p>
         )}
       </div>

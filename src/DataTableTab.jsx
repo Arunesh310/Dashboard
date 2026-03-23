@@ -131,9 +131,6 @@ export function DataTableTab({
     return (
       <div className="mx-auto max-w-lg rounded-2xl border border-slate-200/90 bg-white/95 px-6 py-16 text-center shadow-card backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark">
         <p className="text-lg font-medium text-slate-800 dark:text-slate-100">No data loaded</p>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Use the upload button in the header to import a CSV file.
-        </p>
       </div>
     );
   }
@@ -329,13 +326,12 @@ export function DataTableTab({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-slate-200/80 pt-4 text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+      <div className="flex flex-col gap-2 border-t border-slate-200/80 pt-4 text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-500 sm:text-sm">
         <p>
           {filteredRows.length === 0
             ? "Showing 0 of 0 records"
             : `Showing ${rangeStart}–${rangeEnd} of ${filteredRows.length.toLocaleString()} records`}
         </p>
-        <p className="text-slate-500 dark:text-slate-600">Click any row to export.</p>
       </div>
 
       {totalPages > 1 ? (

@@ -273,11 +273,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     onDownloadFiltered(subset, `camera-status-rca-offline-${safe}.csv`);
   };
 
-  const offlineWithoutRemark = useMemo(
-    () => offlineRows.filter((r) => !(r.rca || "").trim()).length,
-    [offlineRows]
-  );
-
   const exportSnapshotSummary = () => {
     downloadCsv(
       "camera-status-snapshot-summary.csv",
@@ -364,21 +359,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
       <div ref={ref}>
         <div className="surface-card px-4 py-8 text-center text-sm text-slate-600 sm:px-6 sm:py-10 dark:text-slate-400">
           <p className="font-medium text-slate-800 dark:text-slate-100">No camera status file loaded</p>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Use the <strong className="text-slate-900 dark:text-slate-200">upload</strong> button in the header
-            while this tab is open to import a dedicated CSV. Expected columns:{" "}
-            <strong className="text-slate-900 dark:text-slate-200">Alias</strong>,{" "}
-            <strong className="text-slate-900 dark:text-slate-200">Status</strong>, plus{" "}
-            <strong className="text-slate-900 dark:text-slate-200">Zone</strong>,{" "}
-            <strong className="text-slate-900 dark:text-slate-200">Pod</strong>,{" "}
-            <strong className="text-slate-900 dark:text-slate-200">Remark</strong> (optional).{" "}
-            <span className="block pt-2 text-xs text-slate-500 dark:text-slate-500">
-              Rows need a clear <strong className="text-slate-700 dark:text-slate-300">Online</strong> or{" "}
-              <strong className="text-slate-700 dark:text-slate-300">Offline</strong> status (blank or
-              unrecognized values are skipped). Blank <strong className="text-slate-700 dark:text-slate-300">Remark</strong>{" "}
-              values are omitted from RCA breakdowns.
-            </span>
-          </p>
         </div>
       </div>
     );
@@ -387,36 +367,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   return (
     <div ref={ref} className="space-y-4 sm:space-y-5">
       <div className="surface-card">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-              Filters &amp; scope
-            </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
-              Showing{" "}
-              <strong className="text-slate-900 dark:text-slate-200">{kpis.total.toLocaleString()}</strong>{" "}
-              cameras
-              {kpis.total !== allRows.length ? (
-                <>
-                  {" "}
-                  (of {allRows.length.toLocaleString()} loaded
-                  {zoneFilter !== "all" || podFilter !== "all" || statusFilter !== "all"
-                    ? " — filters narrow the view"
-                    : ""}
-                  )
-                </>
-              ) : null}
-              . Zone: <strong className="text-slate-800 dark:text-slate-200">{filterLabel(zoneFilter)}</strong>
-              {" · "}
-              POD: <strong className="text-slate-800 dark:text-slate-200">{filterLabel(podFilter)}</strong>
-              {" · "}
-              Status:{" "}
-              <strong className="text-slate-800 dark:text-slate-200">
-                {filterLabel(statusFilter, "All statuses")}
-              </strong>
-              .
-            </p>
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Filters</h2>
           <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
             <button
               type="button"
@@ -546,19 +498,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         ))}
       </section>
 
-      <div className="surface-muted border border-slate-200/80 px-4 py-3 dark:border-slate-700/50">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          RCA mapping
-        </p>
-        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-          <strong className="text-slate-900 dark:text-slate-100">RCA</strong> values come from your CSV{" "}
-          <em>Remark</em> column (also accepts a column named <em>RCA</em>). Blank remarks are not grouped in RCA
-          tables — they still appear in connectivity KPIs. RCA breakdown below lists{" "}
-          <strong className="text-slate-900 dark:text-slate-100">offline</strong> cameras with a non-blank
-          remark only. Use &quot;RCA (all cameras)&quot; for non-blank remarks across the full filtered view.
-        </p>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="surface-card">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -599,7 +538,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               <ZoneOfflineBarChart labels={zoneBarLabels} values={zoneBarValues} />
             ) : (
               <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-                No zones in filter
+                No data
               </p>
             )}
           </div>
@@ -608,14 +547,9 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
       <section className="surface-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-              Zone-wise summary
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">
-              Click a row or use the icon to download camera-level CSV for that zone.
-            </p>
-          </div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+            Zone-wise summary
+          </h2>
           <DownloadBtn
             count={zoneAgg.length}
             variant="blue"
@@ -654,7 +588,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                     key={z.zone}
                     className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
                     onClick={() => downloadZoneRow(z.zone)}
-                    title="Click to download cameras in this zone"
+                    title="Download zone cameras"
                   >
                     <td className="px-3 py-2">
                       <span
@@ -700,15 +634,9 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
       <section className="surface-card">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-              POD-wise summary
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-500">
-              <span className="font-medium text-slate-600 dark:text-slate-400">%</span> = offline share within
-              each POD.
-            </p>
-          </div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+            POD-wise summary
+          </h2>
           <DownloadBtn
             count={podAgg.length}
             variant="slate"
@@ -747,7 +675,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                     key={p.pod}
                     className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
                     onClick={() => downloadPodRow(p.pod)}
-                    title="Click to download cameras in this POD"
+                    title="Download POD cameras"
                   >
                     <td className="max-w-[14rem] truncate px-3 py-2 font-medium text-slate-900 dark:text-slate-100">
                       {p.pod}
@@ -786,17 +714,10 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
       </section>
 
       <section className="surface-card">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-              RCA / Remark — offline cameras
-            </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400 sm:text-sm">
-              Each row is one <strong className="text-slate-800 dark:text-slate-200">Remark</strong> value
-              among cameras currently <strong className="text-red-700 dark:text-red-300">offline</strong> in
-              this view. Shares are computed against offline-only totals and the full filtered list.
-            </p>
-          </div>
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+            RCA / Remark — offline cameras
+          </h2>
           <div className="flex flex-wrap gap-2 lg:shrink-0 lg:justify-end">
             <DownloadBtn
               count={rcaOfflineEnriched.length}
@@ -812,19 +733,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             />
           </div>
         </div>
-        {offlineWithoutRemark > 0 ? (
-          <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-100">
-            <strong className="font-semibold">{offlineWithoutRemark.toLocaleString()}</strong> offline
-            camera(s) have a blank Remark — they are included in totals and offline counts but{" "}
-            <span className="font-medium">not</span> in the RCA table below.
-          </p>
-        ) : null}
         {rcaOfflineEnriched.length === 0 ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {kpis.offline === 0
-              ? "No offline cameras in the current filter."
-              : "No offline cameras with a non-blank Remark — add remarks or check your data."}
-          </p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">No data.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
             <div className="max-h-[min(28rem,60vh)] overflow-auto">
@@ -845,7 +755,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                       key={x.remark}
                       className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
                       onClick={() => downloadRcaOfflineRow(x.remark)}
-                      title="Click to download cameras with this RCA (offline)"
+                      title="Download RCA cameras (offline)"
                     >
                       <td className="max-w-[min(100vw,14rem)] px-3 py-2.5 sm:max-w-md">
                         <span
@@ -897,83 +807,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         )}
       </section>
 
-      <section className="surface-card">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">All downloads in one place</h3>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-          Every aggregate and chart has a CSV above. Use this checklist if you need a quick reminder.
-        </p>
-        <ul className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-          {[
-            { label: "Snapshot summary (filters + KPIs)", action: exportSnapshotSummary },
-            {
-              label: "Offline rate summary (counts + %)",
-              action: () =>
-                downloadCsv(
-                  "camera-status-offline-rate-summary.csv",
-                  [
-                    {
-                      View_total: kpis.total,
-                      Online: kpis.online,
-                      Offline: kpis.offline,
-                      Offline_pct: Math.round(kpis.offlinePct * 100) / 100,
-                    },
-                  ],
-                  ["View_total", "Online", "Offline", "Offline_pct"]
-                ),
-            },
-            { label: "Connectivity mix (Online / Offline)", action: exportStatusMix },
-            { label: "Zone offline % (chart data)", action: exportZoneChartData },
-            { label: "Zone summary table", action: () =>
-              downloadCsv(
-                "camera-status-zone-summary.csv",
-                zoneAgg.map((z) => ({
-                  Zone: z.zone,
-                  Total_Cameras: z.total,
-                  Online: z.online,
-                  Offline: z.offline,
-                  Offline_pct: Math.round(z.offlinePct * 100) / 100,
-                })),
-                ["Zone", "Total_Cameras", "Online", "Offline", "Offline_pct"]
-              ),
-            },
-            { label: "POD summary table", action: () =>
-              downloadCsv(
-                "camera-status-pod-summary.csv",
-                podAgg.map((p) => ({
-                  POD: p.pod,
-                  Total_Cameras: p.total,
-                  Online: p.online,
-                  Offline: p.offline,
-                  Offline_pct: Math.round(p.pct * 100) / 100,
-                })),
-                ["POD", "Total_Cameras", "Online", "Offline", "Offline_pct"]
-              ),
-            },
-            { label: "RCA offline (full metrics)", action: exportRcaOfflineDetailed },
-            { label: "RCA all cameras in view", action: exportRcaAllCameras },
-            { label: "Camera-level detail (Alias, Zone, POD, Status, RCA)", action: onDownloadDetailed },
-          ].map((item) => (
-            <li key={item.label}>
-              <button
-                type="button"
-                onClick={item.action}
-                className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-left font-medium text-slate-800 transition-all hover:border-blue-300/60 hover:bg-blue-50/50 dark:border-slate-600/60 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:border-sky-500/30 dark:hover:bg-slate-800/80"
-              >
-                <span className="min-w-0">{item.label}</span>
-                <DownloadIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <div className="flex flex-col items-stretch gap-3 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-50/90 to-white px-4 py-4 dark:from-blue-950/30 dark:to-slate-900/40 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Full camera-level export</p>
-          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-            Respects Zone / POD / Status filters. Columns: Alias, Zone, POD, Status, RCA.
-          </p>
-        </div>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Detailed export</p>
         <button
           type="button"
           onClick={onDownloadDetailed}
