@@ -16,7 +16,7 @@ function matches(fieldName, aliases) {
 
 /**
  * @param {string[]} fields
- * @returns {{ rca: string | null; hub: string | null; zone: string | null; manifest: string | null; open: string | null; date: string | null; cctv: string | null }}
+ * @returns {{ rca: string | null; hub: string | null; zone: string | null; manifest: string | null; open: string | null; date: string | null; cctv: string | null; poc: string | null }}
  */
 export function detectColumns(fields) {
   if (!fields?.length) {
@@ -28,6 +28,7 @@ export function detectColumns(fields) {
       open: null,
       date: null,
       cctv: null,
+      poc: null,
     };
   }
 
@@ -77,6 +78,17 @@ export function detectColumns(fields) {
       "footage",
       "video",
       "camera feed",
+    ]),
+    poc: pick([
+      "poc",
+      "point of contact",
+      "point_of_contact",
+      "poc name",
+      "poc_name",
+      "owner",
+      "analyst",
+      "assigned to",
+      "assignee",
     ]),
   };
 }

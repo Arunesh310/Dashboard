@@ -22,7 +22,9 @@ import {
   countByKind,
   aggregateByField,
   aggregateRca,
+  aggregatePocProductivity,
   buildWeeklySeriesForKind,
+  buildWeeklyProductivitySeriesForPoc,
   compareLatestWeeks,
   sliceLastWeeks,
   buildWeeklyPivotRows,
@@ -206,6 +208,15 @@ function stripExportRows(rows, fields) {
 }
 
 const HOTSPOTS_INITIAL_VISIBLE = 5;
+const POC_PRODUCTIVITY_CARD_LIMIT = 10;
+
+const POC_SPARKLINE_PALETTE = [
+  { border: "rgb(13 148 136)", fill: "rgba(13, 148, 136, 0.14)" },
+  { border: "rgb(79 70 229)", fill: "rgba(79, 70, 229, 0.14)" },
+  { border: "rgb(217 119 6)", fill: "rgba(217, 119, 6, 0.14)" },
+  { border: "rgb(8 145 178)", fill: "rgba(8, 145, 178, 0.14)" },
+  { border: "rgb(192 38 211)", fill: "rgba(192, 38, 211, 0.12)" },
+];
 
 const FILTER_DEFS = [
   { id: "all", label: "All Data" },
@@ -288,7 +299,25 @@ function issueTrendPillClass(direction) {
   return "bg-slate-100 text-slate-900 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600/80";
 }
 
-function TrendSparkline({ series, borderColor, fillColor }) {
+/** Higher productivity % is better — invert colors vs issue trend pills. */
+function productivityTrendPillClass(direction) {
+  if (direction === "up")
+    return "bg-emerald-50 text-emerald-950 ring-1 ring-emerald-200/90 dark:bg-emerald-950 dark:text-emerald-50 dark:ring-emerald-800/90";
+  if (direction === "down")
+    return "bg-red-50 text-red-950 ring-1 ring-red-200/90 dark:bg-red-950 dark:text-red-50 dark:ring-red-800/90";
+  if (direction === "baseline" || direction === "none" || direction === "flat")
+    return "bg-slate-50 text-slate-800 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600/80";
+  return "bg-slate-100 text-slate-900 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600/80";
+}
+
+function TrendSparkline({
+  series,
+  borderColor,
+  fillColor,
+  datasetLabel = "Cases",
+  valueSuffix = "",
+  ySuggestedMax,
+}) {
   const { isDark } = useTheme();
   const trimmed = useMemo(() => sliceLastWeeks(series, 10), [series]);
   const data = useMemo(
@@ -296,7 +325,7 @@ function TrendSparkline({ series, borderColor, fillColor }) {
       labels: trimmed.map((x) => x.label),
       datasets: [
         {
-          label: "Cases",
+          label: datasetLabel,
           data: trimmed.map((x) => x.count),
           borderColor,
           backgroundColor: fillColor,
@@ -308,7 +337,7 @@ function TrendSparkline({ series, borderColor, fillColor }) {
         },
       ],
     }),
-    [trimmed, borderColor, fillColor]
+    [trimmed, borderColor, fillColor, datasetLabel]
   );
 
   const options = useMemo(
@@ -329,6 +358,17 @@ function TrendSparkline({ series, borderColor, fillColor }) {
               const wk = trimmed[i]?.weekKey;
               return wk ? `Week of ${wk}` : "";
             },
+            label(ctx) {
+              const i = ctx.dataIndex;
+              const pt = trimmed[i];
+              const v = ctx.parsed.y;
+              if (pt && typeof pt.eligible === "number" && typeof pt.proper === "number") {
+                return `Productivity: ${v}% (${pt.proper}/${pt.eligible} proper)`;
+              }
+              return valueSuffix
+                ? `${datasetLabel}: ${v}${valueSuffix}`
+                : `${datasetLabel}: ${v}`;
+            },
           },
         },
       },
@@ -344,8 +384,9 @@ function TrendSparkline({ series, borderColor, fillColor }) {
         },
         y: {
           beginAtZero: true,
+          suggestedMax: ySuggestedMax,
           ticks: {
-            precision: 0,
+            precision: ySuggestedMax != null ? 1 : 0,
             font: { size: 10 },
             color: isDark ? "#94a3b8" : "#64748b",
           },
@@ -355,7 +396,7 @@ function TrendSparkline({ series, borderColor, fillColor }) {
         },
       },
     }),
-    [trimmed, isDark]
+    [trimmed, isDark, datasetLabel, valueSuffix, ySuggestedMax]
   );
 
   if (!trimmed.length) {
@@ -478,6 +519,16 @@ export default function App() {
   const weeklyPivotRows = useMemo(
     () => (colMapSafe.date ? buildWeeklyPivotRows(annotated, colMapSafe.date) : []),
     [annotated, colMapSafe.date]
+  );
+
+  const pocProductivityList = useMemo(
+    () => aggregatePocProductivity(annotated, colMapSafe.poc),
+    [annotated, colMapSafe.poc]
+  );
+
+  const pocProductivityTop = useMemo(
+    () => pocProductivityList.slice(0, POC_PRODUCTIVITY_CARD_LIMIT),
+    [pocProductivityList]
   );
 
   const zonePairs = useMemo(
@@ -1116,6 +1167,159 @@ export default function App() {
                 </div>
               ))}
             </section>
+
+            <div className="surface-card">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                    POC productivity <span className="text-slate-500 dark:text-slate-400">(POC)</span>
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+                    <span className="font-medium text-slate-800 dark:text-slate-200">Eligible pool</span> per POC
+                    excludes <span className="font-medium">Closed</span>,{" "}
+                    <span className="font-medium">Offline</span>, blank RCA, and RCA text containing{" "}
+                    <span className="font-medium">not centralized</span> (or centralised).{" "}
+                    <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> is proper
+                    bagging cases ÷ eligible cases (all other kinds in that pool count toward the denominator only).
+                    Week-over-week compares the latest two weeks that have eligible volume. Uses all loaded rows.
+                  </p>
+                  {colMapSafe.poc ? (
+                    <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-500">
+                      POC column:{" "}
+                      <span className="text-slate-700 dark:text-slate-300">{colMapSafe.poc}</span>
+                      {colMapSafe.date ? (
+                        <>
+                          {" "}
+                          · Date column:{" "}
+                          <span className="text-slate-700 dark:text-slate-300">{colMapSafe.date}</span>
+                        </>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-300/90">
+                          {" "}
+                          · Add a date column for weekly productivity trends.
+                        </span>
+                      )}
+                    </p>
+                  ) : null}
+                </div>
+                {colMapSafe.poc && pocProductivityList.length > 0 ? (
+                  <DownloadBtn
+                    count={pocProductivityList.length}
+                    variant="blue"
+                    label="Download POC productivity summary"
+                    onClick={() =>
+                      downloadCsv(
+                        "poc-productivity-summary.csv",
+                        pocProductivityList.map((r) => ({
+                          poc: r.poc,
+                          eligible: r.eligible,
+                          proper: r.proper,
+                          rate_pct: r.ratePct ?? "",
+                        })),
+                        ["poc", "eligible", "proper", "rate_pct"]
+                      )
+                    }
+                  />
+                ) : null}
+              </div>
+
+              {!colMapSafe.poc ? (
+                <p className="rounded-xl border border-dashed border-slate-300/90 bg-slate-50/80 px-4 py-6 text-sm text-slate-600 dark:border-slate-600/60 dark:bg-slate-800/30 dark:text-slate-400">
+                  Add a column named <strong className="text-slate-800 dark:text-slate-200">POC</strong>,{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">Point of contact</strong>,{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">Owner</strong>, or{" "}
+                  <strong className="text-slate-800 dark:text-slate-200">Assignee</strong> to enable this view.
+                </p>
+              ) : pocProductivityList.length === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  No eligible cases after exclusions (every row may be closed, offline, blank, or not centralized).
+                </p>
+              ) : (
+                <>
+                  {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
+                    <p className="mb-3 text-xs text-slate-500 dark:text-slate-500">
+                      Showing top {POC_PRODUCTIVITY_CARD_LIMIT} POCs by eligible case volume (
+                      {pocProductivityList.length} total).
+                    </p>
+                  ) : null}
+                  <div className="space-y-4">
+                    {pocProductivityTop.map((row, idx) => {
+                      const series =
+                        colMapSafe.date &&
+                        buildWeeklyProductivitySeriesForPoc(
+                          annotated,
+                          colMapSafe.date,
+                          colMapSafe.poc,
+                          row.poc
+                        );
+                      const trend =
+                        series && series.length
+                          ? compareLatestWeeks(sliceLastWeeks(series, 52))
+                          : {
+                              direction: "none",
+                              summary: colMapSafe.date
+                                ? "No weekly eligible rows with parseable dates"
+                                : "Add a date column for weekly trends",
+                              last: row.ratePct ?? 0,
+                              prev: null,
+                            };
+                      const colors = POC_SPARKLINE_PALETTE[idx % POC_SPARKLINE_PALETTE.length];
+                      return (
+                        <div
+                          key={row.poc}
+                          className="surface-muted flex flex-col gap-3 p-4 lg:flex-row lg:items-stretch lg:justify-between"
+                        >
+                          <div className="min-w-0 shrink-0 lg:max-w-sm">
+                            <h3 className="truncate text-base font-bold text-slate-900 dark:text-slate-100">
+                              {row.poc}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                              Eligible{" "}
+                              <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                                {row.eligible.toLocaleString()}
+                              </span>
+                              {" · "}
+                              Proper bagging{" "}
+                              <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                                {row.proper.toLocaleString()}
+                              </span>
+                              {" · "}
+                              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                {row.ratePct != null ? `${row.ratePct}%` : "—"} overall
+                              </span>
+                            </p>
+                            <p
+                              className={`mt-2 inline-flex w-fit max-w-full rounded-full px-2.5 py-1 text-xs font-semibold ${productivityTrendPillClass(
+                                trend.direction
+                              )}`}
+                            >
+                              {trend.summary}
+                            </p>
+                          </div>
+                          <div className="min-h-[9rem] min-w-0 flex-1 lg:max-w-xl">
+                            {series && series.length > 0 ? (
+                              <TrendSparkline
+                                series={series}
+                                borderColor={colors.border}
+                                fillColor={colors.fill}
+                                datasetLabel="Productivity"
+                                ySuggestedMax={100}
+                              />
+                            ) : (
+                              <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-slate-200/80 text-xs text-slate-500 dark:border-slate-600/60 dark:text-slate-500">
+                                {colMapSafe.date
+                                  ? "No weekly eligible rows with parseable dates for this POC."
+                                  : "Add a date column to chart weekly productivity %."}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             {weeklyByIssue.dateCol ? (
               <div className="surface-card">

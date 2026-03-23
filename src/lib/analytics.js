@@ -285,6 +285,90 @@ export function sliceLastWeeks(series, maxWeeks) {
   return series.slice(-maxWeeks);
 }
 
+/** Closed, offline, blank RCA, or RCA indicating not centralized — excluded from POC productivity pool. */
+export function isExcludedFromPocProductivity(row) {
+  if (row.__kind === "closed" || row.__kind === "offline") return true;
+  const rca = String(row.__rcaText ?? "").trim();
+  if (!rca) return true;
+  const t = rca.toLowerCase();
+  if (t.includes("not centralized") || t.includes("not centralised")) return true;
+  return false;
+}
+
+/**
+ * Per-POC productivity: among non-excluded cases, share that are proper bagging (%).
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {string | null} pocCol
+ * @returns {{ poc: string; eligible: number; proper: number; ratePct: number | null }[]}
+ */
+export function aggregatePocProductivity(rows, pocCol) {
+  if (!pocCol) return [];
+  const byPoc = new Map();
+  for (const r of rows) {
+    const raw = r[pocCol];
+    const poc =
+      raw != null && String(raw).trim() !== "" ? String(raw).trim() : null;
+    if (!poc) continue;
+    if (isExcludedFromPocProductivity(r)) continue;
+    const agg = byPoc.get(poc) ?? { eligible: 0, proper: 0 };
+    agg.eligible += 1;
+    if (r.__kind === "proper_bagging") agg.proper += 1;
+    byPoc.set(poc, agg);
+  }
+  return [...byPoc.entries()]
+    .map(([poc, { eligible, proper }]) => ({
+      poc,
+      eligible,
+      proper,
+      ratePct: eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : null,
+    }))
+    .sort((a, b) => b.eligible - a.eligible);
+}
+
+/**
+ * Weekly productivity % for one POC (proper bagging / eligible in that week).
+ * `count` is rate % for use with compareLatestWeeks / sparklines.
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {string | null} dateCol
+ * @param {string | null} pocCol
+ * @param {string} pocValue
+ * @returns {{ weekKey: string; label: string; count: number; eligible: number; proper: number }[]}
+ */
+export function buildWeeklyProductivitySeriesForPoc(
+  rows,
+  dateCol,
+  pocCol,
+  pocValue
+) {
+  if (!dateCol || !pocCol) return [];
+  const target = String(pocValue).trim();
+  const byWeek = new Map();
+  for (const r of rows) {
+    const raw = r[pocCol];
+    const poc =
+      raw != null && String(raw).trim() !== "" ? String(raw).trim() : "";
+    if (poc !== target) continue;
+    const dt = parseFlexibleDate(r[dateCol]);
+    if (!dt) continue;
+    if (isExcludedFromPocProductivity(r)) continue;
+    const wk = weekKeyFromDate(dt);
+    const cur = byWeek.get(wk) ?? { eligible: 0, proper: 0 };
+    cur.eligible += 1;
+    if (r.__kind === "proper_bagging") cur.proper += 1;
+    byWeek.set(wk, cur);
+  }
+  return [...byWeek.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([weekKey, { eligible, proper }]) => ({
+      weekKey,
+      label: shortWeekLabel(weekKey),
+      eligible,
+      proper,
+      count: eligible > 0 ? Math.round((proper / eligible) * 1000) / 10 : 0,
+    }))
+    .filter((x) => x.eligible > 0);
+}
+
 const TREND_KINDS = ["partial_bagging", "lm_fraud", "camera_issues"];
 
 /**
