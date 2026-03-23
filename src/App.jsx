@@ -166,7 +166,7 @@ function ThemeToggle() {
       aria-checked={dark}
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
       onClick={toggleTheme}
-      className="group flex items-center gap-2.5 rounded-full border border-slate-200/90 bg-white/90 py-1 pl-3 pr-1 shadow-btn backdrop-blur-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md active:scale-[0.98] dark:border-slate-600/70 dark:bg-slate-800/70 dark:shadow-btn-dark dark:hover:border-slate-500"
+      className="group flex max-w-full items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/90 py-1 pl-2 pr-0.5 shadow-btn backdrop-blur-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md active:scale-[0.98] sm:gap-2.5 sm:pl-3 sm:pr-1 dark:border-slate-600/70 dark:bg-slate-800/70 dark:shadow-btn-dark dark:hover:border-slate-500"
     >
       <span className="hidden text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:inline dark:text-slate-400">
         {dark ? "Dark" : "Light"}
@@ -908,26 +908,26 @@ export default function App() {
   return (
     <div
       ref={exportRootRef}
-      className="min-h-screen bg-slate-50 transition-colors duration-200 dark:bg-slate-950"
+      className="min-h-screen min-w-0 bg-slate-50 transition-colors duration-200 dark:bg-slate-950"
     >
-      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 text-slate-900 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="min-w-0 shrink-0">
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-lg font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 sm:text-xl">
+      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 pt-[env(safe-area-inset-top,0px)] text-slate-900 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)]">
+        <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-3 px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <div className="min-w-0 flex-1">
+            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 xs:text-lg sm:text-xl">
               CCTV Dashboard
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
               Real-time monitoring · local analysis
             </p>
             {fileName ? (
-              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-500">
+              <p className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-500 sm:text-xs">
                 {fileName} · {annotated.length.toLocaleString()} rows
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex min-w-0 w-full flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between lg:w-auto lg:max-w-none lg:justify-end">
             <nav
-              className="flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90"
+              className="grid w-full min-w-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:flex xs:w-auto xs:flex-none"
               role="tablist"
               aria-label="Main views"
             >
@@ -936,7 +936,7 @@ export default function App() {
                 role="tab"
                 aria-selected={activeTab === "dashboard"}
                 onClick={() => setActiveTab("dashboard")}
-                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200 ${
+                className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
                   activeTab === "dashboard"
                     ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -949,7 +949,7 @@ export default function App() {
                 role="tab"
                 aria-selected={activeTab === "data"}
                 onClick={() => setActiveTab("data")}
-                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200 ${
+                className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
                   activeTab === "data"
                     ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -958,6 +958,7 @@ export default function App() {
                 Data Table
               </button>
             </nav>
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 xs:w-auto xs:justify-end sm:gap-2">
             <label
               className="btn-header-icon cursor-pointer"
               title="Upload CSV"
@@ -1023,16 +1024,22 @@ export default function App() {
                     exportFields
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-900/20 transition-all duration-200 hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] dark:shadow-btn-dark"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-blue-900/20 transition-all duration-200 hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark"
               >
-                <span>Export ({shortCount(dataTableFiltered.length)})</span>
-                <DownloadIcon className="h-4 w-4" />
+                <span>
+                  <span className="sm:hidden">CSV</span>
+                  <span className="hidden sm:inline">
+                    Export ({shortCount(dataTableFiltered.length)})
+                  </span>
+                </span>
+                <DownloadIcon className="h-4 w-4 shrink-0" />
               </button>
             ) : null}
+            </div>
           </div>
         </div>
         {error ? (
-          <div className="border-t border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950 sm:px-6 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100">
+          <div className="border-t border-amber-200/80 bg-amber-50 px-3 py-2 text-center text-xs text-amber-950 sm:px-6 sm:text-sm dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100">
             {error}
           </div>
         ) : null}
@@ -1041,14 +1048,14 @@ export default function App() {
       <main
         className={
           activeTab === "data"
-            ? "min-h-[calc(100vh-3.5rem)] bg-slate-100 pb-16 dark:bg-slate-950"
-            : "mx-auto max-w-6xl space-y-5 bg-slate-100/80 px-4 py-6 pb-16 sm:px-6 dark:bg-transparent"
+            ? "min-h-[calc(100vh-3.5rem)] w-full min-w-0 bg-slate-100 pb-20 dark:bg-slate-950 sm:pb-16"
+            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 bg-slate-100/80 px-3 py-4 pb-20 sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
         }
       >
         {activeTab === "dashboard" ? (
           <>
             {!annotated.length ? (
-              <div className="surface-card px-6 py-10 text-center text-slate-600 dark:text-slate-400">
+              <div className="surface-card px-4 py-8 text-center text-sm text-slate-600 sm:px-6 sm:py-10 dark:text-slate-400">
                 <p className="font-medium text-slate-800 dark:text-slate-100">No file loaded</p>
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                   Use the <strong className="text-slate-900 dark:text-slate-200">upload</strong> button in
@@ -1134,14 +1141,14 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {FILTER_DEFS.map((p) => {
                 const active = filter === p.id;
                 const c = pillCount(p.id);
                 return (
                   <div
                     key={p.id}
-                    className={`flex items-center gap-1 rounded-full border px-1 py-1 pl-3 shadow-sm transition-all ${
+                    className={`flex min-w-0 w-full flex-col gap-2 rounded-xl border px-2 py-2 shadow-sm transition-all xs:flex-row xs:items-center xs:gap-1 xs:rounded-full xs:px-1 xs:py-1 xs:pl-3 sm:w-auto ${
                       active
                         ? "border-blue-500/80 bg-blue-50 ring-2 ring-blue-200/80 dark:border-blue-500/50 dark:bg-blue-950/50 dark:ring-blue-500/30"
                         : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
@@ -1150,7 +1157,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setFilter(p.id)}
-                      className="py-1 text-sm font-semibold text-slate-800 dark:text-slate-100"
+                      className="min-w-0 py-1 text-left text-sm font-semibold text-slate-800 xs:text-center dark:text-slate-100 sm:text-center"
                     >
                       {p.label}{" "}
                       <span className="font-normal text-slate-500 dark:text-slate-400">({shortCount(c)})</span>
@@ -1279,16 +1286,18 @@ export default function App() {
                   <button
                     type="button"
                     onClick={k.dl}
-                    className="absolute right-4 top-4 rounded-xl border border-slate-200/90 bg-white/80 p-2 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     title="Download this segment"
                   >
                     <DownloadIcon className="h-4 w-4" />
                   </button>
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{k.icon}</span>
+                  <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
+                    <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
                     <div>
                       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
-                      <p className={`mt-1 text-3xl font-bold tracking-tight ${k.tone}`}>
+                      <p
+                        className={`mt-1 text-2xl font-bold tabular-nums tracking-tight xs:text-3xl ${k.tone}`}
+                      >
                         {k.value.toLocaleString()}
                       </p>
                       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
@@ -1303,7 +1312,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setPocProductivityExpanded((v) => !v)}
-                  className="flex min-w-0 flex-1 items-start gap-2 rounded-xl p-1 text-left transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/40"
+                  className="flex min-w-0 w-full flex-1 items-start gap-2 rounded-xl p-1 text-left transition-colors hover:bg-slate-50/90 sm:w-auto dark:hover:bg-slate-800/40"
                   aria-expanded={pocProductivityExpanded}
                   aria-controls="poc-productivity-details"
                   id="poc-productivity-toggle"
@@ -1313,12 +1322,12 @@ export default function App() {
                     expanded={pocProductivityExpanded}
                   />
                   <span className="min-w-0">
-                    <span className="block text-lg font-bold text-slate-900 dark:text-slate-100">
+                    <span className="block text-base font-bold leading-snug text-slate-900 dark:text-slate-100 sm:text-lg">
                       POC productivity{" "}
                       <span className="font-semibold text-slate-500 dark:text-slate-400">(POC)</span>
                     </span>
-                    <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-500">
-                      {pocProductivityExpanded ? "Hide" : "Show"} methodology & weekly trend charts
+                    <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-500 sm:text-xs">
+                      {pocProductivityExpanded ? "Hide" : "Show"} charts & methodology
                     </span>
                   </span>
                 </button>
@@ -1363,7 +1372,7 @@ export default function App() {
                 </p>
               ) : (
                 <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-xl border border-slate-200/90 bg-gradient-to-br from-emerald-50/90 to-white px-4 py-3 dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-slate-900/30">
                       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300/90">
                         Overall productivity
@@ -1573,8 +1582,10 @@ export default function App() {
               <div className="surface-card">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Weekly trends</h2>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                      Weekly trends
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                       Week starts Monday · compared to the previous week with data · column{" "}
                       <span className="font-semibold text-slate-800 dark:text-slate-200">{weeklyByIssue.dateCol}</span>
                     </p>
@@ -1693,8 +1704,10 @@ export default function App() {
             ) : null}
 
             <div className="surface-card">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Zone Distribution</h2>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                  Zone Distribution
+                </h2>
                 <DownloadBtn
                   count={filtered.length}
                   variant="blue"
@@ -1703,7 +1716,7 @@ export default function App() {
                 />
               </div>
               <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
-                <div className="h-64">
+                <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
                   {zonePairs.length ? <Doughnut data={donutData} options={donutOptions} /> : (
                     <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
                       No zone column or empty filter.
@@ -1748,8 +1761,10 @@ export default function App() {
             </div>
 
             <div className="surface-card">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">RCA Categories</h2>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                  RCA Categories
+                </h2>
                 <DownloadBtn
                   count={rcaPairs.reduce((s, [, v]) => s + v, 0)}
                   variant="blue"
@@ -1757,7 +1772,7 @@ export default function App() {
                   onClick={() => downloadAggregateCsv("rca-summary.csv", rcaPairs)}
                 />
               </div>
-              <div className="h-80">
+              <div className="h-56 min-h-[14rem] w-full min-w-0 sm:h-72 md:h-80">
                 {rcaPairs.length ? (
                   <HorizontalBarChart
                     labels={rcaPairs.map(([l]) => l)}
@@ -1921,8 +1936,10 @@ export default function App() {
             <div className="surface-card">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Recent Issues</h2>
-                  <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                    Recent Issues
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                     Problematic issues only: excludes{" "}
                     <span className="font-medium text-slate-800 dark:text-slate-200">closed</span>,{" "}
                     <span className="font-medium text-slate-800 dark:text-slate-200">proper bagging</span>, and
@@ -1955,16 +1972,16 @@ export default function App() {
                   />
                 </div>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700/60">
-                <table className="min-w-full text-left text-sm">
+              <div className="-mx-1 overflow-x-auto rounded-xl border border-slate-100 px-1 dark:border-slate-700/60 sm:mx-0 sm:px-0">
+                <table className="min-w-full text-left text-xs sm:text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
-                      {colMapSafe.manifest ? <th className="px-3 py-2">Manifest</th> : null}
-                      {colMapSafe.hub ? <th className="px-3 py-2">Hub</th> : null}
-                      {colMapSafe.zone ? <th className="px-3 py-2">Zone</th> : null}
-                      <th className="px-3 py-2">RCA</th>
-                      {colMapSafe.open ? <th className="px-3 py-2">Open</th> : null}
-                      <th className="px-3 py-2"> </th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 sm:text-xs">
+                      {colMapSafe.manifest ? <th className="px-2 py-2 sm:px-3">Manifest</th> : null}
+                      {colMapSafe.hub ? <th className="px-2 py-2 sm:px-3">Hub</th> : null}
+                      {colMapSafe.zone ? <th className="px-2 py-2 sm:px-3">Zone</th> : null}
+                      <th className="px-2 py-2 sm:px-3">RCA</th>
+                      {colMapSafe.open ? <th className="px-2 py-2 sm:px-3">Open</th> : null}
+                      <th className="px-2 py-2 sm:px-3"> </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1972,7 +1989,7 @@ export default function App() {
                       <tr>
                         <td
                           colSpan={10}
-                          className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-500"
+                          className="px-2 py-10 text-center text-xs text-slate-500 sm:px-3 sm:text-sm dark:text-slate-500"
                         >
                           No problematic rows (non-closed, non-proper-bagging, non-blank RCA) for this filter.
                         </td>
@@ -1988,17 +2005,17 @@ export default function App() {
                           className="border-b border-slate-100 hover:bg-slate-50/80 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
                         >
                           {colMapSafe.manifest ? (
-                            <td className="px-3 py-2 font-mono text-xs text-slate-800 dark:text-slate-200">
+                            <td className="max-w-[8rem] truncate px-2 py-2 font-mono text-[10px] text-slate-800 sm:max-w-none sm:px-3 sm:text-xs dark:text-slate-200">
                               {r[colMapSafe.manifest] ?? "—"}
                             </td>
                           ) : null}
                           {colMapSafe.hub ? (
-                            <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                            <td className="max-w-[6rem] truncate px-2 py-2 text-slate-700 sm:max-w-[10rem] sm:px-3 md:max-w-none dark:text-slate-300">
                               {r[colMapSafe.hub] ?? "—"}
                             </td>
                           ) : null}
                           {colMapSafe.zone ? (
-                            <td className="px-3 py-2">
+                            <td className="px-2 py-2 sm:px-3">
                               <span
                                 className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${zoneBadgeClass(
                                   r[colMapSafe.zone]
@@ -2008,9 +2025,9 @@ export default function App() {
                               </span>
                             </td>
                           ) : null}
-                          <td className="px-3 py-2">
+                          <td className="max-w-[9rem] px-2 py-2 sm:max-w-[14rem] sm:px-3">
                             <span
-                              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${rcaBadgeClass(
+                              className={`inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:text-xs ${rcaBadgeClass(
                                 r.__kind
                               )}`}
                             >
@@ -2018,14 +2035,14 @@ export default function App() {
                             </span>
                           </td>
                           {colMapSafe.open ? (
-                            <td className="px-3 py-2 font-semibold tabular-nums text-red-600 dark:text-red-400">
+                            <td className="px-2 py-2 font-semibold tabular-nums text-red-600 sm:px-3 dark:text-red-400">
                               {r[colMapSafe.open] ?? "—"}
                             </td>
                           ) : null}
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-2 sm:px-3">
                             <button
                               type="button"
-                              className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                              className="rounded-lg border border-slate-200/90 bg-white/90 p-1 text-slate-500 shadow-sm transition-all hover:bg-white sm:rounded-xl sm:p-1.5 dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
                               title="Download this row"
                               onClick={() =>
                                 downloadCsv(
@@ -2087,12 +2104,12 @@ function ChartCard({
   const summaryTotal = pairs.reduce((s, [, v]) => s + v, 0);
   return (
     <div className="surface-card">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
-          <span>{icon}</span>
-          {title}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="flex min-w-0 items-center gap-2 text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+          <span className="shrink-0">{icon}</span>
+          <span className="min-w-0 leading-snug">{title}</span>
         </h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <DownloadBtn
             count={summaryTotal}
             variant="slate"
@@ -2102,7 +2119,7 @@ function ChartCard({
           <DownloadBtn count={rowCount} variant="orange" label="Rows CSV" onClick={onDownloadRows} />
         </div>
       </div>
-      <div className="h-72">
+      <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64 md:h-72">
         {pairs.length ? (
           <HorizontalBarChart
             labels={pairs.map(([l]) => l)}

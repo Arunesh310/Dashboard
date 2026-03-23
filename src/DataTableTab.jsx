@@ -123,7 +123,7 @@ export function DataTableTab({
   const rangeEnd = Math.min((page + 1) * DATA_TABLE_PAGE_SIZE, filteredRows.length);
 
   const selectClass =
-    "min-w-[8.5rem] rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-blue-400 dark:focus:ring-blue-400/25";
+    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-blue-400 dark:focus:ring-blue-400/25";
 
   const exportRow = (r) => {
     downloadCsv("data-table-row.csv", stripExportRows([r], exportFields), exportFields);
@@ -141,7 +141,7 @@ export function DataTableTab({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 px-4 pb-16 pt-6 sm:px-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 px-3 pb-20 pt-4 sm:px-5 sm:pb-16 sm:pt-6 md:px-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="relative min-w-0 flex-1">
           <svg
@@ -167,9 +167,9 @@ export function DataTableTab({
             aria-label="Search manifests and hubs"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="sr-only sm:not-sr-only">Zone</span>
+        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 sm:flex sm:flex-wrap">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-slate-600 dark:text-slate-400">Zone</span>
             <select
               value={zoneFilter}
               onChange={(e) => setZoneFilter(e.target.value)}
@@ -184,8 +184,8 @@ export function DataTableTab({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="sr-only sm:not-sr-only">RCA</span>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-slate-600 dark:text-slate-400">RCA</span>
             <select
               value={rcaFilter}
               onChange={(e) => setRcaFilter(e.target.value)}
@@ -200,8 +200,8 @@ export function DataTableTab({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="sr-only sm:not-sr-only">Category</span>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-slate-600 dark:text-slate-400">Category</span>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -221,18 +221,26 @@ export function DataTableTab({
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm text-slate-800 dark:text-slate-200">
+          <table className="min-w-full text-left text-xs text-slate-800 dark:text-slate-200 sm:text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400">
+              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400 sm:text-xs">
                 {colMapSafe.manifest ? (
-                  <th className="whitespace-nowrap px-4 py-3">Manifest</th>
+                  <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Manifest</th>
                 ) : null}
-                {colMapSafe.zone ? <th className="px-4 py-3">Zone</th> : null}
-                {colMapSafe.hub ? <th className="px-4 py-3">Hub</th> : null}
-                <th className="px-4 py-3">RCA</th>
-                {colMapSafe.open ? <th className="px-4 py-3">Open</th> : null}
-                {colMapSafe.cctv ? <th className="px-4 py-3">CCTV</th> : null}
-                <th className="w-12 px-4 py-3" aria-label="Actions" />
+                {colMapSafe.zone ? (
+                  <th className="px-2 py-2.5 sm:px-4 sm:py-3">Zone</th>
+                ) : null}
+                {colMapSafe.hub ? (
+                  <th className="px-2 py-2.5 sm:px-4 sm:py-3">Hub</th>
+                ) : null}
+                <th className="px-2 py-2.5 sm:px-4 sm:py-3">RCA</th>
+                {colMapSafe.open ? (
+                  <th className="px-2 py-2.5 sm:px-4 sm:py-3">Open</th>
+                ) : null}
+                {colMapSafe.cctv ? (
+                  <th className="px-2 py-2.5 sm:px-4 sm:py-3">CCTV</th>
+                ) : null}
+                <th className="w-10 px-2 py-2.5 sm:w-12 sm:px-4 sm:py-3" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -240,7 +248,7 @@ export function DataTableTab({
                 <tr>
                   <td
                     colSpan={10}
-                    className="px-4 py-14 text-center text-slate-500 dark:text-slate-500"
+                    className="px-3 py-12 text-center text-xs text-slate-500 sm:px-4 sm:py-14 sm:text-sm dark:text-slate-500"
                   >
                     No records match your filters.
                   </td>
@@ -257,12 +265,12 @@ export function DataTableTab({
                     onClick={() => exportRow(r)}
                   >
                     {colMapSafe.manifest ? (
-                      <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-700 dark:text-slate-300">
+                      <td className="whitespace-nowrap px-2 py-2 sm:px-4 sm:py-2.5 font-mono text-xs text-slate-700 dark:text-slate-300">
                         {r[colMapSafe.manifest] ?? "—"}
                       </td>
                     ) : null}
                     {colMapSafe.zone ? (
-                      <td className="px-4 py-2.5">
+                      <td className="px-2 py-2 sm:px-4 sm:py-2.5">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${zoneBadgeClass(
                             r[colMapSafe.zone]
@@ -273,11 +281,11 @@ export function DataTableTab({
                       </td>
                     ) : null}
                     {colMapSafe.hub ? (
-                      <td className="max-w-[14rem] truncate px-4 py-2.5 text-slate-700 dark:text-slate-300">
+                      <td className="max-w-[14rem] truncate px-2 py-2 sm:px-4 sm:py-2.5 text-slate-700 dark:text-slate-300">
                         {r[colMapSafe.hub] ?? "—"}
                       </td>
                     ) : null}
-                    <td className="px-4 py-2.5">
+                    <td className="px-2 py-2 sm:px-4 sm:py-2.5">
                       <span
                         className={`inline-flex max-w-[16rem] truncate rounded-full px-2.5 py-0.5 text-xs font-semibold ${rcaBadgeClass(
                           r.__kind
@@ -288,12 +296,12 @@ export function DataTableTab({
                       </span>
                     </td>
                     {colMapSafe.open ? (
-                      <td className="px-4 py-2.5 font-semibold tabular-nums text-red-600 dark:text-red-400">
+                      <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-semibold tabular-nums text-red-600 dark:text-red-400">
                         {r[colMapSafe.open] ?? "—"}
                       </td>
                     ) : null}
                     {colMapSafe.cctv ? (
-                      <td className="px-4 py-2.5 text-blue-600 dark:text-blue-400">
+                      <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-blue-600 dark:text-blue-400">
                         {cctvShowsIcon(r[colMapSafe.cctv]) ? (
                           <CameraIcon className="h-5 w-5" aria-label="CCTV available" />
                         ) : (
@@ -301,7 +309,7 @@ export function DataTableTab({
                         )}
                       </td>
                     ) : null}
-                    <td className="px-4 py-2.5">
+                    <td className="px-2 py-2 sm:px-4 sm:py-2.5">
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-slate-600/70 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -323,7 +331,7 @@ export function DataTableTab({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-slate-200/80 pt-4 text-sm text-slate-500 dark:border-slate-800/60 dark:text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-t border-slate-200/80 pt-4 text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
         <p>
           {filteredRows.length === 0
             ? "Showing 0 of 0 records"
@@ -333,23 +341,23 @@ export function DataTableTab({
       </div>
 
       {totalPages > 1 ? (
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex w-full flex-col items-stretch gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center">
           <button
             type="button"
             disabled={page <= 0}
             onClick={() => setPage((p) => Math.max(0, p - 1))}
-            className="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="min-h-[44px] rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:min-h-0 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Previous
           </button>
-          <span className="px-2 text-sm text-slate-500 dark:text-slate-500">
+          <span className="px-2 text-center text-xs text-slate-500 sm:text-sm dark:text-slate-500">
             Page {page + 1} of {totalPages}
           </span>
           <button
             type="button"
             disabled={page >= totalPages - 1}
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            className="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="min-h-[44px] rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:min-h-0 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Next
           </button>
