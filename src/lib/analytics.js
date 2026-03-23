@@ -111,13 +111,18 @@ export function filterRowsForHotspots(rows) {
   return rows.filter((r) => HOTSPOT_ISSUE_KINDS.includes(r.__kind));
 }
 
-export function aggregateByField(rows, fieldKey, limit = 12) {
+/**
+ * @param {{ skipEmpty?: boolean }} [opts] If `skipEmpty`, rows with blank/null field are omitted (no "Unknown" bucket).
+ */
+export function aggregateByField(rows, fieldKey, limit = 12, opts = {}) {
+  const skipEmpty = opts.skipEmpty === true;
   if (!fieldKey) return [];
   const counts = new Map();
   for (const r of rows) {
     const raw = r[fieldKey];
-    const label =
-      raw != null && String(raw).trim() !== "" ? String(raw).trim() : "Unknown";
+    const trimmed = raw != null && String(raw).trim() !== "" ? String(raw).trim() : "";
+    if (skipEmpty && !trimmed) continue;
+    const label = trimmed || "Unknown";
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   return [...counts.entries()]

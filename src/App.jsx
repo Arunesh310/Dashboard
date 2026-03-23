@@ -631,7 +631,7 @@ export default function App() {
   }, [pocProductivityList]);
 
   const zonePairs = useMemo(
-    () => aggregateByField(filtered, colMapSafe.zone, 8),
+    () => aggregateByField(filtered, colMapSafe.zone, 8, { skipEmpty: true }),
     [filtered, colMapSafe.zone]
   );
 
