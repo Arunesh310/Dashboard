@@ -299,8 +299,8 @@ export function hasValidRcaForPocProductivity(row) {
 }
 
 /**
- * Per-POC productivity: all rows with a POC count as eligible (numerator pool).
- * Denominator = rows with valid RCA only. Productivity = totalEligible / validRca.
+ * Per-POC productivity: all rows with a POC count as eligible.
+ * Productivity = validRca / totalEligible.
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} pocCol
  * @returns {{ poc: string; totalEligible: number; validRca: number; productivityRatio: number | null }[]}
@@ -324,15 +324,15 @@ export function aggregatePocProductivity(rows, pocCol) {
       totalEligible,
       validRca,
       productivityRatio:
-        validRca > 0
-          ? Math.round((totalEligible / validRca) * 1000) / 1000
+        totalEligible > 0
+          ? Math.round((validRca / totalEligible) * 1000) / 1000
           : null,
     }))
     .sort((a, b) => b.totalEligible - a.totalEligible);
 }
 
 /**
- * Weekly productivity ratio for one POC: total cases in week ÷ valid RCA cases in week.
+ * Weekly productivity ratio for one POC: valid RCA cases in week ÷ total cases in week.
  * `count` is the ratio for compareLatestWeeks / sparklines (y-axis).
  * @param {ReturnType<typeof annotateRows>} rows
  * @param {string | null} dateCol
@@ -370,8 +370,8 @@ export function buildWeeklyProductivitySeriesForPoc(
       totalEligible,
       validRca,
       count:
-        validRca > 0
-          ? Math.round((totalEligible / validRca) * 1000) / 1000
+        totalEligible > 0
+          ? Math.round((validRca / totalEligible) * 1000) / 1000
           : 0,
     }))
     .filter((x) => x.validRca > 0);

@@ -405,7 +405,7 @@ function TrendSparkline({
                 typeof pt.totalEligible === "number" &&
                 typeof pt.validRca === "number"
               ) {
-                return `Productivity: ${v}× (${pt.totalEligible.toLocaleString()} eligible / ${pt.validRca.toLocaleString()} valid RCA)`;
+                return `Productivity: ${v}× (${pt.validRca.toLocaleString()} valid RCA / ${pt.totalEligible.toLocaleString()} eligible)`;
               }
               return valueSuffix
                 ? `${datasetLabel}: ${v}${valueSuffix}`
@@ -592,8 +592,8 @@ export default function App() {
       totalEligible,
       validRca,
       overallProductivityRatio:
-        validRca > 0
-          ? Math.round((totalEligible / validRca) * 1000) / 1000
+        totalEligible > 0
+          ? Math.round((validRca / totalEligible) * 1000) / 1000
           : null,
       pocCount: pocProductivityList.length,
     };
@@ -1461,7 +1461,7 @@ export default function App() {
                           : "—"}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-500">
-                        Total eligible ÷ valid RCA (all POCs combined)
+                        Valid RCA ÷ total eligible (all POCs combined)
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-4 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
@@ -1566,8 +1566,8 @@ export default function App() {
                       <span className="font-medium">Closed</span>, not <span className="font-medium">Offline</span>,
                       have non-blank RCA, and whose RCA does not contain{" "}
                       <span className="font-medium">not centralized</span> (or centralised).{" "}
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = eligible ÷
-                      valid RCA (ratio; can exceed 1×). Week-over-week compares the latest two weeks that have valid RCA
+                      <span className="font-medium text-slate-800 dark:text-slate-200">Productivity</span> = valid RCA ÷
+                      eligible (ratio). Week-over-week compares the latest two weeks that have valid RCA
                       volume. Based on all loaded rows.
                     </p>
                     {pocProductivityList.length > POC_PRODUCTIVITY_CARD_LIMIT ? (
