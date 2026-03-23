@@ -93,6 +93,30 @@ function UploadIcon({ className = "h-5 w-5" }) {
   );
 }
 
+function CameraIcon({ className = "h-5 w-5" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+    </svg>
+  );
+}
+
 function PdfIcon({ className = "h-4 w-4" }) {
   return (
     <svg
@@ -1046,36 +1070,45 @@ export default function App() {
           </div>
           <div className="flex min-w-0 w-full flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between lg:w-auto lg:max-w-none lg:justify-end">
             <nav
-              className="grid w-full min-w-0 grid-cols-2 gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:flex xs:w-auto xs:flex-none"
+              className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
               role="tablist"
               aria-label="Main views"
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "dashboard"}
-                onClick={() => setActiveTab("dashboard")}
-                className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
-                  activeTab === "dashboard"
-                    ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
-                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
+              <div
+                className="flex shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/15 to-sky-500/10 px-2.5 text-blue-600 dark:from-blue-500/25 dark:to-sky-500/15 dark:text-sky-300"
+                aria-hidden
+                title="CCTV"
               >
-                Dashboard
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "data"}
-                onClick={() => setActiveTab("data")}
-                className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
-                  activeTab === "data"
-                    ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
-                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
-              >
-                Data Table
-              </button>
+                <CameraIcon className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" />
+              </div>
+              <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "dashboard"}
+                  onClick={() => setActiveTab("dashboard")}
+                  className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
+                    activeTab === "dashboard"
+                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "data"}
+                  onClick={() => setActiveTab("data")}
+                  className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
+                    activeTab === "data"
+                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Data Table
+                </button>
+              </div>
             </nav>
             <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 xs:w-auto xs:justify-end sm:gap-2">
             <label
