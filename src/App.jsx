@@ -494,6 +494,61 @@ function TrendSparkline({
   );
 }
 
+/** Fixed header height + hide-on-scroll-down below the lg breakpoint (touch-friendly reading). */
+function useScrollHideHeader(activeTab) {
+  const headerRef = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderHeight(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setHeaderHidden(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onScroll = () => {
+      if (!mq.matches) {
+        setHeaderHidden(false);
+        lastScrollY.current = window.scrollY;
+        return;
+      }
+      const y = window.scrollY;
+      const delta = y - lastScrollY.current;
+      const threshold = 10;
+      if (y < 56) {
+        setHeaderHidden(false);
+      } else if (delta > threshold) {
+        setHeaderHidden(true);
+      } else if (delta < -threshold) {
+        setHeaderHidden(false);
+      }
+      lastScrollY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const onMq = () => {
+      if (!mq.matches) setHeaderHidden(false);
+    };
+    mq.addEventListener("change", onMq);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      mq.removeEventListener("change", onMq);
+    };
+  }, []);
+
+  return { headerRef, headerHeight, headerHidden };
+}
+
 export default function App() {
   const { isDark } = useTheme();
   const [fileName, setFileName] = useState("");
@@ -523,6 +578,7 @@ export default function App() {
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
   const exportRootRef = useRef(null);
   const cameraStatusPdfRef = useRef(null);
+  const { headerRef, headerHeight, headerHidden } = useScrollHideHeader(activeTab);
 
   const cameraZoneOptions = useMemo(() => {
     const s = new Set();
@@ -1204,8 +1260,13 @@ export default function App() {
       ref={exportRootRef}
       className="min-h-screen min-w-0 bg-slate-50 transition-colors duration-200 dark:bg-slate-950"
     >
-      <header className="sticky top-0 z-50 border-b border-slate-200/90 bg-white/85 pt-[env(safe-area-inset-top,0px)] text-slate-900 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)]">
-        <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-3 px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+      <header
+        ref={headerRef}
+        className={`fixed left-0 right-0 top-0 z-50 border-b border-slate-200/90 bg-white/85 pt-[env(safe-area-inset-top,0px)] text-slate-900 shadow-sm backdrop-blur-xl transition-transform duration-300 ease-out will-change-transform dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)] touch-manipulation ${
+          headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
+        }`}
+      >
+        <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="min-w-0 flex-1">
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 xs:text-lg sm:text-xl">
               LM ODC - CCTV Dashboard
@@ -1397,10 +1458,21 @@ export default function App() {
       </header>
 
       <main
+        style={{
+          paddingTop: headerHeight > 0 ? headerHeight : 96,
+          ...(activeTab === "data"
+            ? {
+                minHeight:
+                  headerHeight > 0
+                    ? `calc(100dvh - ${headerHeight}px)`
+                    : "calc(100dvh - 7rem)",
+              }
+            : {}),
+        }}
         className={
           activeTab === "data"
-            ? "min-h-[calc(100vh-3.5rem)] w-full min-w-0 bg-slate-100 pb-20 dark:bg-slate-950 sm:pb-16"
-            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 bg-slate-100/80 px-3 py-4 pb-20 sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
+            ? "w-full min-w-0 max-w-full overflow-x-hidden bg-slate-100 pb-[max(5rem,env(safe-area-inset-bottom,0px))] dark:bg-slate-950 sm:pb-16"
+            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 overflow-x-hidden bg-slate-100/80 px-3 py-4 pb-[max(5rem,env(safe-area-inset-bottom,0px))] sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
         }
       >
         {activeTab === "camera" ? (
