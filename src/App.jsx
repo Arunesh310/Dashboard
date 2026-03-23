@@ -33,6 +33,8 @@ import {
   ISSUE_KIND_LABELS,
 } from "./lib/analytics.js";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
+import { isSupabaseConfigured } from "./lib/supabaseClient.js";
+import { loadSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
 import { DataTableTab } from "./DataTableTab.jsx";
 
 ChartJS.register(
@@ -473,6 +475,9 @@ export default function App() {
   const [dataTablePage, setDataTablePage] = useState(0);
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
   const exportRootRef = useRef(null);
 
   useEffect(() => {
@@ -786,7 +791,7 @@ export default function App() {
     [isDark]
   );
 
-  const onParsed = useCallback((res, name) => {
+  const ingestParsed = useCallback((res, name) => {
     setError("");
     const f = res.meta.fields?.filter(Boolean) ?? [];
     if (!f.length) {
@@ -811,6 +816,41 @@ export default function App() {
     setDataTableCategory("all");
     setDataTablePage(0);
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let cancelled = false;
+    (async () => {
+      setCloudLoading(true);
+      try {
+        const row = await loadSnapshot();
+        if (cancelled || !row?.csv_text?.trim()) return;
+        Papa.parse(row.csv_text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => {
+            if (cancelled) return;
+            if (res.errors?.length) {
+              setError(res.errors[0].message || "Could not parse cloud CSV.");
+              return;
+            }
+            ingestParsed(res, row.file_name || "shared.csv");
+            setCloudUpdatedAt(row.updated_at || new Date().toISOString());
+          },
+          error: (err) => {
+            if (!cancelled) setError(err.message || "Cloud CSV read failed.");
+          },
+        });
+      } catch (e) {
+        if (!cancelled) setError(e.message || "Could not load cloud data.");
+      } finally {
+        if (!cancelled) setCloudLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ingestParsed]);
 
   const handleReset = useCallback(() => {
     setRows([]);
@@ -876,24 +916,47 @@ export default function App() {
     }
   }, []);
 
-  const handleFile = useCallback((file) => {
-    if (!file?.name?.toLowerCase().endsWith(".csv")) {
-      setError("Please upload a .csv file.");
-      return;
-    }
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => {
-        if (res.errors?.length) {
-          setError(res.errors[0].message || "Could not parse CSV.");
-          return;
-        }
-        onParsed(res, file.name);
-      },
-      error: (err) => setError(err.message || "Read failed."),
-    });
-  }, [onParsed]);
+  const handleFile = useCallback(
+    (file) => {
+      if (!file?.name?.toLowerCase().endsWith(".csv")) {
+        setError("Please upload a .csv file.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const csvText = String(reader.result ?? "");
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (res) => {
+            if (res.errors?.length) {
+              setError(res.errors[0].message || "Could not parse CSV.");
+              return;
+            }
+            ingestParsed(res, file.name);
+            if (isSupabaseConfigured()) {
+              setCloudSyncing(true);
+              try {
+                await saveSnapshot(csvText, file.name);
+                setCloudUpdatedAt(new Date().toISOString());
+              } catch (e) {
+                setError(
+                  e.message ||
+                    "Saved locally, but cloud sync failed. Check env keys and Supabase policies."
+                );
+              } finally {
+                setCloudSyncing(false);
+              }
+            }
+          },
+          error: (err) => setError(err.message || "Read failed."),
+        });
+      };
+      reader.onerror = () => setError("Could not read file.");
+      reader.readAsText(file);
+    },
+    [ingestParsed]
+  );
 
   const exportFields = fields;
 
@@ -917,8 +980,23 @@ export default function App() {
               CCTV Dashboard
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
-              Real-time monitoring · local analysis
+              {isSupabaseConfigured()
+                ? cloudLoading
+                  ? "Loading shared snapshot from Supabase…"
+                  : cloudSyncing
+                    ? "Saving snapshot to Supabase…"
+                    : "Cloud sync — latest upload is shared with everyone using this app"
+                : "Real-time monitoring · local analysis"}
             </p>
+            {cloudUpdatedAt && isSupabaseConfigured() && !cloudLoading ? (
+              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                Snapshot updated{" "}
+                {new Date(cloudUpdatedAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+              </p>
+            ) : null}
             {fileName ? (
               <p className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-500 sm:text-xs">
                 {fileName} · {annotated.length.toLocaleString()} rows

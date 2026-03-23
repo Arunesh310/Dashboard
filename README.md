@@ -1,6 +1,6 @@
 # Operations CCTV Dashboard
 
-A browser-based **operations dashboard** for analyzing CCTV / logistics-style issue data from **CSV files**. Everything runs **locally in the browser**—no server or database required.
+A browser-based **operations dashboard** for analyzing CCTV / logistics-style issue data from **CSV files**. The UI runs **in the browser**; analytics are computed client-side. **Optional [Supabase](https://supabase.com)** stores one **shared CSV snapshot** so anyone with the deployed app (any network) sees the **latest upload** without LAN or same Wi‑Fi.
 
 ## Features
 
@@ -22,6 +22,7 @@ A browser-based **operations dashboard** for analyzing CCTV / logistics-style is
 | Charts      | Chart.js 4, react-chartjs-2         |
 | CSV         | Papa Parse                          |
 | PDF         | html2pdf.js (html2canvas + jsPDF)   |
+| Cloud (opt.)| Supabase (`dashboard_snapshot` row) |
 
 ## Prerequisites
 
@@ -35,6 +36,26 @@ npm run dev
 ```
 
 Open the URL Vite prints (usually `http://localhost:5173`).
+
+## Shared data (Supabase, optional)
+
+To sync one CSV across **all users** over the internet:
+
+1. Create a Supabase project and open **SQL Editor**.
+2. Run the script in **`supabase/schema.sql`** (table `dashboard_snapshot`, row `id = 1`, RLS policies for `anon`).
+3. Copy **Project URL** and **anon public** key from **Project Settings → API**.
+4. In the project root, create **`.env`** (not committed; see **`.env.example`**):
+
+   ```bash
+   VITE_SUPABASE_URL=https://xxxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJ...
+   ```
+
+5. Restart `npm run dev` or rebuild for production.
+
+**Behavior:** On load, if env vars are set, the app **fetches** the stored CSV and parses it like a local upload. After a successful **upload**, it **upserts** the full file text so others get it on refresh.
+
+**Security note:** The sample RLS allows **anonymous read and write** on that single row—fine for a small internal tool, but **anyone with your anon key can change the snapshot**. For production, tighten policies (e.g. signed-in users only, or Edge Functions with a secret) and rotate keys if exposed.
 
 ## Scripts
 
