@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check:cloud": "node scripts/check-cloud.mjs"
+    "check:cloud": "node scripts/check-cloud.mjs",
+    "migrate:camera": "node scripts/apply-camera-columns.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
@@ -23,6 +24,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "pg": "^8.13.1"
   }
 }

@@ -35,8 +35,16 @@ import {
 } from "./lib/analytics.js";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
 import { isSupabaseConfigured } from "./lib/supabaseClient.js";
-import { loadSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
+import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
 import { DataTableTab } from "./DataTableTab.jsx";
+import { CameraStatusTab } from "./CameraStatusTab.jsx";
+import {
+  buildCameraStatusRows,
+  detectCameraStatusColumns,
+  filterCameraStatusRows,
+  rowsToDetailExport,
+  CAMERA_DETAIL_FIELDS,
+} from "./lib/cameraStatus.js";
 
 ChartJS.register(
   CategoryScale,
@@ -496,6 +504,13 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [hotspotsExpanded, setHotspotsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [cameraStatusRows, setCameraStatusRows] = useState([]);
+  const [cameraStatusFileName, setCameraStatusFileName] = useState("");
+  const [cameraStatusUpdatedAt, setCameraStatusUpdatedAt] = useState(null);
+  const [cameraStatusError, setCameraStatusError] = useState("");
+  const [camZoneFilter, setCamZoneFilter] = useState("all");
+  const [camPodFilter, setCamPodFilter] = useState("all");
+  const [camStatusFilter, setCamStatusFilter] = useState("all");
   const [dataTableSearch, setDataTableSearch] = useState("");
   const [dataTableZone, setDataTableZone] = useState("all");
   const [dataTableRca, setDataTableRca] = useState("all");
@@ -507,6 +522,23 @@ export default function App() {
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
   const exportRootRef = useRef(null);
+  const cameraStatusPdfRef = useRef(null);
+
+  const cameraZoneOptions = useMemo(() => {
+    const s = new Set();
+    for (const r of cameraStatusRows) s.add(r.zone || "");
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [cameraStatusRows]);
+
+  const cameraPodOptions = useMemo(() => {
+    const s = new Set();
+    for (const r of cameraStatusRows) s.add(r.pod || "");
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [cameraStatusRows]);
+
+  useEffect(() => {
+    if (camStatusFilter === "unknown") setCamStatusFilter("all");
+  }, [camStatusFilter]);
 
   useEffect(() => {
     ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
@@ -882,6 +914,33 @@ export default function App() {
     setDataTablePage(0);
   }, []);
 
+  const applyCameraParseResult = useCallback((res, fileName, updatedAtIso) => {
+    const f = res.meta.fields?.filter(Boolean) ?? [];
+    const cols = detectCameraStatusColumns(f);
+    if (!cols.alias || !cols.status) {
+      setCameraStatusError("CSV must include Alias and Status columns.");
+      return false;
+    }
+    const data = (res.data ?? []).filter((r) =>
+      f.some((key) => r[key] != null && String(r[key]).trim() !== "")
+    );
+    const rows = buildCameraStatusRows(data, cols);
+    if (!rows.length) {
+      setCameraStatusError(
+        "No valid rows. Use a non-empty Alias and Status values of Online or Offline only (blank or unrecognized statuses are skipped)."
+      );
+      return false;
+    }
+    setCameraStatusRows(rows);
+    setCameraStatusFileName(fileName);
+    setCameraStatusUpdatedAt(updatedAtIso);
+    setCamZoneFilter("all");
+    setCamPodFilter("all");
+    setCamStatusFilter("all");
+    setCameraStatusError("");
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
     let cancelled = false;
@@ -889,23 +948,61 @@ export default function App() {
       setCloudLoading(true);
       try {
         const row = await loadSnapshot();
-        if (cancelled || !row?.csv_text?.trim()) return;
-        Papa.parse(row.csv_text, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (res) => {
-            if (cancelled) return;
-            if (res.errors?.length) {
-              setError(res.errors[0].message || "Could not parse cloud CSV.");
-              return;
-            }
-            ingestParsed(res, row.file_name || "shared.csv");
-            setCloudUpdatedAt(row.updated_at || new Date().toISOString());
-          },
-          error: (err) => {
-            if (!cancelled) setError(err.message || "Cloud CSV read failed.");
-          },
-        });
+        if (cancelled || !row) return;
+
+        const loadMain = () => {
+          if (!row.csv_text?.trim()) return Promise.resolve();
+          return new Promise((resolve) => {
+            Papa.parse(row.csv_text, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (res) => {
+                if (cancelled) return resolve();
+                if (res.errors?.length) {
+                  setError(res.errors[0].message || "Could not parse cloud CSV.");
+                  return resolve();
+                }
+                ingestParsed(res, row.file_name || "shared.csv");
+                setCloudUpdatedAt(row.updated_at || new Date().toISOString());
+                resolve();
+              },
+              error: (err) => {
+                if (!cancelled) setError(err.message || "Cloud CSV read failed.");
+                resolve();
+              },
+            });
+          });
+        };
+
+        const loadCamera = () => {
+          if (!row.camera_csv_text?.trim()) return Promise.resolve();
+          return new Promise((resolve) => {
+            Papa.parse(row.camera_csv_text, {
+              header: true,
+              skipEmptyLines: true,
+              complete: (res) => {
+                if (cancelled) return resolve();
+                if (res.errors?.length) {
+                  setCameraStatusError(res.errors[0].message || "Could not parse cloud camera CSV.");
+                  return resolve();
+                }
+                applyCameraParseResult(
+                  res,
+                  row.camera_file_name || "shared-camera.csv",
+                  row.camera_updated_at || row.updated_at || new Date().toISOString()
+                );
+                resolve();
+              },
+              error: (err) => {
+                if (!cancelled) setCameraStatusError(err.message || "Cloud camera CSV read failed.");
+                resolve();
+              },
+            });
+          });
+        };
+
+        await loadMain();
+        await loadCamera();
       } catch (e) {
         if (!cancelled) setError(e.message || "Could not load cloud data.");
       } finally {
@@ -915,7 +1012,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [ingestParsed]);
+  }, [ingestParsed, applyCameraParseResult]);
 
   const handleReset = useCallback(() => {
     setRows([]);
@@ -932,8 +1029,19 @@ export default function App() {
     setActiveTab("dashboard");
   }, []);
 
+  const resetCameraStatus = useCallback(() => {
+    setCameraStatusRows([]);
+    setCameraStatusFileName("");
+    setCameraStatusUpdatedAt(null);
+    setCameraStatusError("");
+    setCamZoneFilter("all");
+    setCamPodFilter("all");
+    setCamStatusFilter("all");
+  }, []);
+
   const handleExportPdf = useCallback(async () => {
-    const el = exportRootRef.current;
+    const el =
+      activeTab === "camera" ? cameraStatusPdfRef.current : exportRootRef.current;
     if (!el) return;
     setPdfExporting(true);
     try {
@@ -943,10 +1051,12 @@ export default function App() {
       );
       const { default: html2pdf } = await import("html2pdf.js");
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const filename =
+        activeTab === "camera" ? `camera-status-${stamp}.pdf` : `cctv-dashboard-${stamp}.pdf`;
       await html2pdf()
         .set({
           margin: [10, 10, 10, 10],
-          filename: `cctv-dashboard-${stamp}.pdf`,
+          filename,
           image: { type: "jpeg", quality: 0.95 },
           html2canvas: {
             scale: 2,
@@ -979,6 +1089,65 @@ export default function App() {
     } finally {
       setPdfExporting(false);
     }
+  }, [activeTab]);
+
+  const handleCameraStatusFile = useCallback(
+    (file) => {
+      if (!file?.name?.toLowerCase().endsWith(".csv")) {
+        setCameraStatusError("Please upload a .csv file.");
+        return;
+      }
+      setCameraStatusError("");
+      const reader = new FileReader();
+      reader.onload = () => {
+        const csvText = String(reader.result ?? "");
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (res) => {
+            if (res.errors?.length) {
+              setCameraStatusError(res.errors[0].message || "Could not parse CSV.");
+              return;
+            }
+            if (!applyCameraParseResult(res, file.name, new Date().toISOString())) return;
+            if (isSupabaseConfigured()) {
+              setCloudSyncing(true);
+              try {
+                await saveCameraSnapshot(csvText, file.name);
+              } catch (e) {
+                setCameraStatusError(
+                  e.message ||
+                    "Saved locally, but camera snapshot could not sync to Supabase. Check env keys, policies, and that migration_add_camera_columns.sql was applied."
+                );
+              } finally {
+                setCloudSyncing(false);
+              }
+            }
+          },
+          error: (err) => setCameraStatusError(err.message || "Read failed."),
+        });
+      };
+      reader.onerror = () => setCameraStatusError("Could not read file.");
+      reader.readAsText(file);
+    },
+    [applyCameraParseResult]
+  );
+
+  const handleCameraDetailDownload = useCallback(() => {
+    const rows = filterCameraStatusRows(cameraStatusRows, {
+      zone: camZoneFilter,
+      pod: camPodFilter,
+      status: camStatusFilter,
+    });
+    downloadCsv(
+      "camera-status-detailed.csv",
+      rowsToDetailExport(rows),
+      CAMERA_DETAIL_FIELDS
+    );
+  }, [cameraStatusRows, camZoneFilter, camPodFilter, camStatusFilter]);
+
+  const handleCameraFilteredDownload = useCallback((subset, filename) => {
+    downloadCsv(filename, rowsToDetailExport(subset), CAMERA_DETAIL_FIELDS);
   }, []);
 
   const handleFile = useCallback(
@@ -1050,7 +1219,7 @@ export default function App() {
                   ? "Loading shared snapshot from Supabase…"
                   : cloudSyncing
                     ? "Saving snapshot to Supabase…"
-                    : "Cloud sync — latest upload is shared with everyone using this app"
+                    : "Cloud sync — dashboard CSV and Camera Status CSV are shared with everyone using this app"
                 : "Real-time monitoring · local analysis"}
             </p>
             {cloudUpdatedAt && isSupabaseConfigured() && !cloudLoading ? (
@@ -1062,9 +1231,22 @@ export default function App() {
                 })}
               </p>
             ) : null}
-            {fileName ? (
+            {activeTab === "camera" && cameraStatusFileName ? (
+              <p className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-500 sm:text-xs">
+                {cameraStatusFileName} · {cameraStatusRows.length.toLocaleString()} cameras
+              </p>
+            ) : fileName ? (
               <p className="mt-1 truncate text-[11px] text-slate-500 dark:text-slate-500 sm:text-xs">
                 {fileName} · {annotated.length.toLocaleString()} rows
+              </p>
+            ) : null}
+            {cameraStatusUpdatedAt && activeTab === "camera" ? (
+              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                Last updated{" "}
+                {new Date(cameraStatusUpdatedAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
               </p>
             ) : null}
           </div>
@@ -1081,13 +1263,13 @@ export default function App() {
               >
                 <CameraIcon className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" />
               </div>
-              <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
+              <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={activeTab === "dashboard"}
                   onClick={() => setActiveTab("dashboard")}
-                  className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "dashboard"
                       ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -1100,7 +1282,7 @@ export default function App() {
                   role="tab"
                   aria-selected={activeTab === "data"}
                   onClick={() => setActiveTab("data")}
-                  className={`rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "data"
                       ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -1108,12 +1290,25 @@ export default function App() {
                 >
                   Data Table
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "camera"}
+                  onClick={() => setActiveTab("camera")}
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                    activeTab === "camera"
+                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Camera Status
+                </button>
               </div>
             </nav>
             <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 xs:w-auto xs:justify-end sm:gap-2">
             <label
               className="btn-header-icon cursor-pointer"
-              title="Upload CSV"
+              title={activeTab === "camera" ? "Upload camera status CSV" : "Upload CSV"}
             >
               <UploadIcon />
               <input
@@ -1122,7 +1317,10 @@ export default function App() {
                 className="sr-only"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) handleFile(f);
+                  if (f) {
+                    if (activeTab === "camera") handleCameraStatusFile(f);
+                    else handleFile(f);
+                  }
                   e.target.value = "";
                 }}
               />
@@ -1134,7 +1332,11 @@ export default function App() {
               onClick={handleExportPdf}
               disabled={pdfExporting}
               aria-busy={pdfExporting}
-              title="Download this page as PDF (layout, charts, and tables as shown)"
+              title={
+                activeTab === "camera"
+                  ? "Download Camera Status summary as PDF"
+                  : "Download this page as PDF (layout, charts, and tables as shown)"
+              }
               className="btn-header-ghost"
             >
               <PdfIcon className="h-4 w-4" />
@@ -1145,9 +1347,9 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={handleReset}
-              disabled={!annotated.length}
-              title="Clear loaded data"
+              onClick={activeTab === "camera" ? resetCameraStatus : handleReset}
+              disabled={activeTab === "camera" ? !cameraStatusRows.length : !annotated.length}
+              title={activeTab === "camera" ? "Clear camera status data" : "Clear loaded data"}
               className="btn-header-ghost"
             >
               <svg
@@ -1190,9 +1392,9 @@ export default function App() {
             </div>
           </div>
         </div>
-        {error ? (
+        {(activeTab === "camera" ? cameraStatusError : error) ? (
           <div className="border-t border-amber-200/80 bg-amber-50 px-3 py-2 text-center text-xs text-amber-950 sm:px-6 sm:text-sm dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100">
-            {error}
+            {activeTab === "camera" ? cameraStatusError : error}
           </div>
         ) : null}
       </header>
@@ -1204,7 +1406,22 @@ export default function App() {
             : "mx-auto w-full min-w-0 max-w-6xl space-y-4 bg-slate-100/80 px-3 py-4 pb-20 sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
         }
       >
-        {activeTab === "dashboard" ? (
+        {activeTab === "camera" ? (
+          <CameraStatusTab
+            ref={cameraStatusPdfRef}
+            allRows={cameraStatusRows}
+            zoneOptions={cameraZoneOptions}
+            podOptions={cameraPodOptions}
+            zoneFilter={camZoneFilter}
+            setZoneFilter={setCamZoneFilter}
+            podFilter={camPodFilter}
+            setPodFilter={setCamPodFilter}
+            statusFilter={camStatusFilter}
+            setStatusFilter={setCamStatusFilter}
+            onDownloadDetailed={handleCameraDetailDownload}
+            onDownloadFiltered={handleCameraFilteredDownload}
+          />
+        ) : activeTab === "dashboard" ? (
           <>
             {!annotated.length ? (
               <div className="surface-card px-4 py-8 text-center text-sm text-slate-600 sm:px-6 sm:py-10 dark:text-slate-400">
@@ -2144,7 +2361,7 @@ export default function App() {
           </>
         ) : null}
         </>
-        ) : (
+        ) : activeTab === "data" ? (
           <DataTableTab
             hasData={annotated.length > 0}
             colMapSafe={colMapSafe}
@@ -2165,7 +2382,7 @@ export default function App() {
             categoryKinds={dataTableCategoryKinds}
             filteredRows={dataTableFiltered}
           />
-        )}
+        ) : null}
       </main>
     </div>
   );

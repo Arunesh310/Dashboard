@@ -4,7 +4,14 @@ const TABLE = "dashboard_snapshot";
 const ROW_ID = 1;
 
 /**
- * @returns {Promise<{ csv_text: string; file_name: string; updated_at: string } | null>}
+ * @returns {Promise<{
+ *   csv_text: string;
+ *   file_name: string;
+ *   updated_at: string;
+ *   camera_csv_text?: string | null;
+ *   camera_file_name?: string | null;
+ *   camera_updated_at?: string | null;
+ * } | null>}
  */
 export async function loadSnapshot() {
   const supabase = getSupabase();
@@ -12,12 +19,17 @@ export async function loadSnapshot() {
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select("csv_text, file_name, updated_at")
+    .select(
+      "csv_text, file_name, updated_at, camera_csv_text, camera_file_name, camera_updated_at"
+    )
     .eq("id", ROW_ID)
     .maybeSingle();
 
   if (error) throw new Error(error.message || "Supabase read failed");
-  if (!data?.csv_text?.trim()) return null;
+  if (!data) return null;
+  const hasMain = Boolean(data.csv_text?.trim());
+  const hasCamera = Boolean(data.camera_csv_text?.trim());
+  if (!hasMain && !hasCamera) return null;
   return data;
 }
 
@@ -41,4 +53,25 @@ export async function saveSnapshot(csvText, fileName) {
   );
 
   if (error) throw new Error(error.message || "Supabase save failed");
+}
+
+/**
+ * Updates only Camera Status fields on the shared row (does not clear dashboard CSV).
+ * @param {string} csvText
+ * @param {string} fileName
+ */
+export async function saveCameraSnapshot(csvText, fileName) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from(TABLE)
+    .update({
+      camera_csv_text: csvText,
+      camera_file_name: fileName || "camera-status.csv",
+      camera_updated_at: new Date().toISOString(),
+    })
+    .eq("id", ROW_ID);
+
+  if (error) throw new Error(error.message || "Supabase camera save failed");
 }

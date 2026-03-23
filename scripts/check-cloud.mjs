@@ -41,7 +41,7 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const rest = `${url}/rest/v1/dashboard_snapshot?id=eq.1&select=id,file_name,updated_at`;
+const rest = `${url}/rest/v1/dashboard_snapshot?id=eq.1&select=id,file_name,updated_at,camera_file_name,camera_updated_at`;
 
 const res = await fetch(rest, {
   headers: {
@@ -54,9 +54,15 @@ const res = await fetch(rest, {
 if (!res.ok) {
   const text = await res.text();
   console.error(`HTTP ${res.status}: ${text.slice(0, 500)}`);
-  console.error(
-    "\n→ In Supabase: run supabase/schema.sql in the SQL Editor, then try again."
-  );
+  if (res.status === 400 && /camera_file_name|column|schema cache/i.test(text)) {
+    console.error(
+      "\n→ Camera columns missing. Run supabase/migration_add_camera_columns.sql in the SQL Editor,\n  or: npm run migrate:camera (with DATABASE_URL in .env)"
+    );
+  } else {
+    console.error(
+      "\n→ In Supabase: run supabase/schema.sql in the SQL Editor, then try again."
+    );
+  }
   process.exit(1);
 }
 

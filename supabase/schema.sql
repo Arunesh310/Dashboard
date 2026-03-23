@@ -5,7 +5,10 @@ create table if not exists public.dashboard_snapshot (
   id smallint primary key default 1 check (id = 1),
   csv_text text not null default '',
   file_name text not null default '',
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  camera_csv_text text not null default '',
+  camera_file_name text not null default '',
+  camera_updated_at timestamptz
 );
 
 alter table public.dashboard_snapshot enable row level security;
