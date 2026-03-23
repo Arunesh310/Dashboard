@@ -34,6 +34,38 @@ export function detectColumns(fields) {
 
   const pick = (aliases) => fields.find((f) => matches(f, aliases)) ?? null;
 
+  /** Prefer upload-date columns so weekly trends match operational “as of upload”, not incident/created dates. */
+  const pickDate = () => {
+    const priority = [
+      "data uploaded date",
+      "data uploaded",
+      "uploaded date",
+      "upload date",
+      "date uploaded",
+      "uploaded at",
+      "upload_at",
+    ];
+    for (const p of priority) {
+      const hit = fields.find((f) => matches(f, [p]));
+      if (hit) return hit;
+    }
+    return pick([
+      "date",
+      "week",
+      "day",
+      "created",
+      "created at",
+      "created_at",
+      "reported",
+      "reported date",
+      "incident date",
+      "event date",
+      "timestamp",
+      "occurred",
+      "observation date",
+    ]);
+  };
+
   return {
     rca: pick([
       "rca",
@@ -56,21 +88,7 @@ export function detectColumns(fields) {
       "order id",
     ]),
     open: pick(["open", "open count", "opens", "open issues"]),
-    date: pick([
-      "date",
-      "week",
-      "day",
-      "created",
-      "created at",
-      "created_at",
-      "reported",
-      "reported date",
-      "incident date",
-      "event date",
-      "timestamp",
-      "occurred",
-      "observation date",
-    ]),
+    date: pickDate(),
     cctv: pick([
       "cctv",
       "cctv flag",
