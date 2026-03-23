@@ -280,12 +280,12 @@ function HorizontalBarChart({ labels, values, color }) {
 /** For issue metrics, “up” means worsening (more cases). */
 function issueTrendPillClass(direction) {
   if (direction === "up")
-    return "bg-red-50 text-red-900 ring-1 ring-red-100 dark:bg-red-500/12 dark:text-red-200 dark:ring-red-400/30";
+    return "bg-red-50 text-red-950 ring-1 ring-red-200/90 dark:bg-red-950 dark:text-red-50 dark:ring-red-800/90";
   if (direction === "down")
-    return "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100 dark:bg-emerald-500/12 dark:text-emerald-200 dark:ring-emerald-400/30";
+    return "bg-emerald-50 text-emerald-950 ring-1 ring-emerald-200/90 dark:bg-emerald-950 dark:text-emerald-50 dark:ring-emerald-800/90";
   if (direction === "baseline" || direction === "none")
-    return "bg-slate-50 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-600/50";
-  return "bg-slate-100 text-slate-800 ring-1 ring-slate-200 dark:bg-slate-700/40 dark:text-slate-200 dark:ring-slate-600/45";
+    return "bg-slate-50 text-slate-800 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-600/80";
+  return "bg-slate-100 text-slate-900 ring-1 ring-slate-200/90 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600/80";
 }
 
 function TrendSparkline({ series, borderColor, fillColor }) {
