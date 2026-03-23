@@ -983,7 +983,7 @@ export default function App() {
     const rows = buildCameraStatusRows(data, cols);
     if (!rows.length) {
       setCameraStatusError(
-        "No valid rows. Use a non-empty Alias and Status values of Online or Offline only (blank or unrecognized statuses are skipped)."
+        "No valid rows. Use non-empty Alias and Status (Online, Offline, or Not Centralized). Blank or other statuses are skipped."
       );
       return false;
     }

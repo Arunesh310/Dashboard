@@ -1,4 +1,15 @@
-/** @typedef {{ cameraId: string, zone: string, pod: string, rca: string, status: string, isOnline: boolean, isOffline: boolean }} CameraStatusRow */
+/**
+ * @typedef {{
+ *   cameraId: string,
+ *   zone: string,
+ *   pod: string,
+ *   rca: string,
+ *   statusRaw: string,
+ *   status: string,
+ *   isOnline: boolean,
+ *   isOffline: boolean,
+ * }} CameraStatusRow
+ */
 
 export function normalizeHeaderKey(h) {
   return String(h ?? "")
@@ -75,14 +86,32 @@ export function normalizeCameraStatusRow(raw, cols) {
   if (!statusRaw) return null;
   const zone = cols.zone ? String(raw[cols.zone] ?? "").trim() : "";
   const pod = cols.pod ? String(raw[cols.pod] ?? "").trim() : "";
-  const rca = cols.remark ? String(raw[cols.remark] ?? "").trim() : "";
+  const remarkFromCol = cols.remark ? String(raw[cols.remark] ?? "").trim() : "";
+  let rca = remarkFromCol;
+
   const st = normalizeStatus(statusRaw);
-  if (st === null) return null;
+  if (st === null) {
+    if (isNotCentralizedRemark(statusRaw)) {
+      return {
+        cameraId,
+        zone,
+        pod,
+        rca: rca || statusRaw,
+        statusRaw,
+        status: "not_centralized",
+        isOnline: false,
+        isOffline: false,
+      };
+    }
+    return null;
+  }
+
   return {
     cameraId,
     zone,
     pod,
     rca,
+    statusRaw,
     status: st,
     isOnline: st === "online",
     isOffline: st === "offline",
@@ -125,16 +154,32 @@ export function summarizeCameras(rows) {
   const total = rows.length;
   let online = 0;
   let offline = 0;
+  let neither = 0;
   let notCentralized = 0;
   for (const r of rows) {
     if (r.isOnline) online++;
-    else offline++;
-    if (isNotCentralizedRemark(r.rca)) notCentralized++;
+    else if (r.isOffline) offline++;
+    else neither++;
+    if (
+      isNotCentralizedRemark(r.rca) ||
+      isNotCentralizedRemark(r.statusRaw)
+    ) {
+      notCentralized++;
+    }
   }
   const offlinePct = total ? (offline / total) * 100 : 0;
   const onlinePct = total ? (online / total) * 100 : 0;
   const notCentralizedPct = total ? (notCentralized / total) * 100 : 0;
-  return { total, online, offline, offlinePct, onlinePct, notCentralized, notCentralizedPct };
+  return {
+    total,
+    online,
+    offline,
+    neither,
+    offlinePct,
+    onlinePct,
+    notCentralized,
+    notCentralizedPct,
+  };
 }
 
 /**
@@ -246,7 +291,10 @@ export function rcaAllBreakdown(rows) {
 }
 
 export function displayStatusLabel(r) {
-  return r.isOnline ? "Online" : "Offline";
+  if (r.isOnline) return "Online";
+  if (r.isOffline) return "Offline";
+  if (isNotCentralizedRemark(r.statusRaw)) return "Not Centralized";
+  return "—";
 }
 
 /**

@@ -197,7 +197,11 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   const onlineRows = useMemo(() => filtered.filter((r) => r.isOnline), [filtered]);
   const offlineRows = useMemo(() => filtered.filter((r) => r.isOffline), [filtered]);
   const notCentralizedRows = useMemo(
-    () => filtered.filter((r) => isNotCentralizedRemark(r.rca)),
+    () =>
+      filtered.filter(
+        (r) =>
+          isNotCentralizedRemark(r.rca) || isNotCentralizedRemark(r.statusRaw)
+      ),
     [filtered]
   );
 
@@ -211,18 +215,31 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-blue-400 dark:focus:ring-blue-400/25";
 
   const donutData = useMemo(
-    () => ({
-      labels: ["Online", "Offline"],
-      datasets: [
-        {
-          data: [kpis.online, kpis.offline],
-          backgroundColor: ["#16a34a", "#dc2626"],
-          borderWidth: 2,
-          borderColor: isDark ? "#0f172a" : "#ffffff",
-          hoverOffset: 6,
-        },
-      ],
-    }),
+    () => {
+      const neither = kpis.neither ?? 0;
+      const labels =
+        neither > 0 ? ["Online", "Offline", "Other"] : ["Online", "Offline"];
+      const data =
+        neither > 0
+          ? [kpis.online, kpis.offline, neither]
+          : [kpis.online, kpis.offline];
+      const backgroundColor =
+        neither > 0
+          ? ["#16a34a", "#dc2626", "#64748b"]
+          : ["#16a34a", "#dc2626"];
+      return {
+        labels,
+        datasets: [
+          {
+            data,
+            backgroundColor,
+            borderWidth: 2,
+            borderColor: isDark ? "#0f172a" : "#ffffff",
+            hoverOffset: 6,
+          },
+        ],
+      };
+    },
     [kpis, isDark]
   );
 
@@ -315,14 +332,20 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   };
 
   const exportStatusMix = () => {
-    downloadCsv(
-      "camera-status-connectivity-mix.csv",
-      [
-        { Status: "Online", Count: kpis.online, Pct_of_view: Math.round(kpis.onlinePct * 100) / 100 },
-        { Status: "Offline", Count: kpis.offline, Pct_of_view: Math.round(kpis.offlinePct * 100) / 100 },
-      ],
-      ["Status", "Count", "Pct_of_view"]
-    );
+    const neither = kpis.neither ?? 0;
+    const total = kpis.total || 1;
+    const rows = [
+      { Status: "Online", Count: kpis.online, Pct_of_view: Math.round(kpis.onlinePct * 100) / 100 },
+      { Status: "Offline", Count: kpis.offline, Pct_of_view: Math.round(kpis.offlinePct * 100) / 100 },
+    ];
+    if (neither > 0) {
+      rows.push({
+        Status: "Other",
+        Count: neither,
+        Pct_of_view: Math.round((neither / total) * 10000) / 100,
+      });
+    }
+    downloadCsv("camera-status-connectivity-mix.csv", rows, ["Status", "Count", "Pct_of_view"]);
   };
 
   const exportZoneChartData = () => {
@@ -503,7 +526,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               Connectivity mix
             </h2>
             <DownloadBtn
-              count={2}
+              count={(kpis.neither ?? 0) > 0 ? 3 : 2}
               variant="outline"
               label="Download chart data (Online / Offline)"
               onClick={exportStatusMix}
