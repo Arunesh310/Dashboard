@@ -35,7 +35,7 @@ import {
   ISSUE_KIND_LABELS,
 } from "./lib/analytics.js";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
-import { isSupabaseConfigured } from "./lib/supabaseClient.js";
+import { isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
 import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
 import { DataTableTab } from "./DataTableTab.jsx";
 import { CameraStatusTab } from "./CameraStatusTab.jsx";
@@ -996,7 +996,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
+    if (!isCloudSnapshotConfigured()) return;
     let cancelled = false;
     (async () => {
       setCloudLoading(true);
@@ -1164,14 +1164,14 @@ export default function App() {
               return;
             }
             if (!applyCameraParseResult(res, file.name, new Date().toISOString())) return;
-            if (isSupabaseConfigured()) {
+            if (isCloudSnapshotConfigured()) {
               setCloudSyncing(true);
               try {
                 await saveCameraSnapshot(csvText, file.name);
               } catch (e) {
                 setCameraStatusError(
                   e.message ||
-                    "Saved locally, but camera snapshot could not sync to Supabase. Check env keys, policies, and that migration_add_camera_columns.sql was applied."
+                    "Saved locally, but camera snapshot could not sync to the cloud. Check Firebase env, Firestore rules, and Authentication."
                 );
               } finally {
                 setCloudSyncing(false);
@@ -1222,7 +1222,7 @@ export default function App() {
               return;
             }
             ingestParsed(res, file.name);
-            if (isSupabaseConfigured()) {
+            if (isCloudSnapshotConfigured()) {
               setCloudSyncing(true);
               try {
                 await saveSnapshot(csvText, file.name);
@@ -1230,7 +1230,7 @@ export default function App() {
               } catch (e) {
                 setError(
                   e.message ||
-                    "Saved locally, but cloud sync failed. Check env keys and Supabase policies."
+                    "Saved locally, but cloud sync failed. Check Firebase env vars and Firestore rules."
                 );
               } finally {
                 setCloudSyncing(false);
@@ -1273,15 +1273,15 @@ export default function App() {
               Fast. Flexible. Future-Ready.
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
-              {isSupabaseConfigured()
+              {isCloudSnapshotConfigured()
                 ? cloudLoading
-                  ? "Loading shared snapshot from Supabase…"
+                  ? "Loading shared snapshot from Firestore…"
                   : cloudSyncing
-                    ? "Saving snapshot to Supabase…"
+                    ? "Saving snapshot to Firestore…"
                     : "Cloud sync"
                 : "Local"}
             </p>
-            {cloudUpdatedAt && isSupabaseConfigured() && !cloudLoading ? (
+            {cloudUpdatedAt && isCloudSnapshotConfigured() && !cloudLoading ? (
               <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
                 Snapshot updated{" "}
                 {new Date(cloudUpdatedAt).toLocaleString(undefined, {

@@ -8,11 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "check:cloud": "node scripts/check-cloud.mjs",
-    "migrate:camera": "node scripts/apply-camera-columns.mjs"
+    "migrate:camera": "node scripts/apply-camera-columns.mjs",
+    "firebase:login": "firebase login",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.3",
     "chart.js": "^4.4.1",
+    "firebase": "^12.11.0",
     "html2pdf.js": "^0.14.0",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
@@ -22,9 +24,9 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "firebase-tools": "^15.11.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
-    "vite": "^6.0.3",
-    "pg": "^8.13.1"
+    "vite": "^6.0.3"
   }
 }

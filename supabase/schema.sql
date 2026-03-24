@@ -13,7 +13,9 @@ create table if not exists public.dashboard_snapshot (
 
 alter table public.dashboard_snapshot enable row level security;
 
--- Anonymous access with the anon key (suitable for internal tools; tighten for production)
+-- Default policies: anon + authenticated can read/write (convenient; weak if anon key leaks).
+-- To lock down: run migration_harden_rls.sql in SQL Editor, add users under Authentication,
+-- and set VITE_SUPABASE_REQUIRE_AUTH=true in .env
 create policy "dashboard_snapshot_select"
   on public.dashboard_snapshot for select
   to anon, authenticated

@@ -1,6 +1,6 @@
 # Operations CCTV Dashboard
 
-A browser-based **operations dashboard** for analyzing CCTV / logistics-style issue data from **CSV files**. The UI runs **in the browser**; analytics are computed client-side. **Optional [Supabase](https://supabase.com)** stores one **shared CSV snapshot** so anyone with the deployed app (any network) sees the **latest upload** without LAN or same Wi‑Fi.
+A browser-based **operations dashboard** for analyzing CCTV / logistics-style issue data from **CSV files**. The UI runs **in the browser**; analytics are computed client-side. **Optional [Firebase / Firestore](https://firebase.google.com/docs/firestore)** stores one **shared CSV snapshot** so anyone with the deployed app (any network) sees the **latest upload** without LAN or same Wi‑Fi.
 
 ## Features
 
@@ -22,7 +22,7 @@ A browser-based **operations dashboard** for analyzing CCTV / logistics-style is
 | Charts      | Chart.js 4, react-chartjs-2         |
 | CSV         | Papa Parse                          |
 | PDF         | html2pdf.js (html2canvas + jsPDF)   |
-| Cloud (opt.)| Supabase (`dashboard_snapshot` row) |
+| Cloud (opt.)| Firestore (`dashboard_snapshot/shared` document) |
 
 ## Prerequisites
 
@@ -37,25 +37,18 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`).
 
-## Shared data (Supabase, optional)
+## Shared data (Firebase / Firestore, optional)
 
 To sync one CSV across **all users** over the internet:
 
-1. Create a Supabase project and open **SQL Editor**.
-2. Run the script in **`supabase/schema.sql`** (table `dashboard_snapshot`, row `id = 1`, RLS policies for `anon`).
-3. Copy **Project URL** and **anon public** key from **Project Settings → API**.
-4. In the project root, create **`.env`** (not committed; see **`.env.example`**):
+1. Create a Firebase project, enable **Firestore**, and add a **Web app** to get the config object.
+2. Deploy **`firestore.rules`** (CLI: `firebase deploy --only firestore:rules`, or paste rules in **Firestore → Rules**). The bundled rules allow **unauthenticated** read/write on **`dashboard_snapshot` only** — no Firebase Authentication setup required.
+3. In the project root, create **`.env`** from **`.env.example`** with your `VITE_FIREBASE_*` values.
+4. Restart `npm run dev` or rebuild for production.
 
-   ```bash
-   VITE_SUPABASE_URL=https://xxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJ...
-   ```
+**Behavior:** On load, if env vars are set, the app **reads** document `dashboard_snapshot/shared` and parses CSV fields like a local upload. After upload, it **merges** the snapshot so others see it on refresh. Camera Status CSV uses the same document with separate fields.
 
-5. Restart `npm run dev` or rebuild for production.
-
-**Behavior:** On load, if env vars are set, the app **fetches** the stored CSV and parses it like a local upload. After a successful **upload**, it **upserts** the full file text so others get it on refresh.
-
-**Security note:** The sample RLS allows **anonymous read and write** on that single row—fine for a small internal tool, but **anyone with your anon key can change the snapshot**. For production, tighten policies (e.g. signed-in users only, or Edge Functions with a secret) and rotate keys if exposed.
+**Security note:** Firebase **web config is public**; with these rules, **anyone who has your config** can change that Firestore document (similar to a leaked public API key). Use a private deploy URL or tighten rules + Auth later. Never put a **service account** or Admin SDK key in Vite env.
 
 ## Scripts
 
@@ -64,6 +57,9 @@ To sync one CSV across **all users** over the internet:
 | `npm run dev`    | Start dev server with HMR      |
 | `npm run build`  | Production build → `dist/`     |
 | `npm run preview`| Serve the production build     |
+| `npm run check:cloud` | Verify `VITE_FIREBASE_*` in `.env`      |
+| `npm run firebase:login` | Firebase CLI login (one-time)       |
+| `npm run firebase:deploy:rules` | Deploy `firestore.rules` (set `.firebaserc`) |
 
 ## CSV columns
 
@@ -89,19 +85,17 @@ Configs in this repo: **`vercel.json`**, **`netlify.toml`** (build → `dist/`, 
 
 ### Option A — Vercel (fastest)
 
-1. **[Deploy to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FArunesh310%2FDashboard&env=VITE_SUPABASE_URL&env=VITE_SUPABASE_ANON_KEY)** (imports this GitHub repo).  
-2. In the import screen, add **Environment variables** (or add them after deploy under **Project → Settings → Environment Variables**):
-   - `VITE_SUPABASE_URL` — Supabase **Project URL**
-   - `VITE_SUPABASE_ANON_KEY` — Supabase **anon public** key  
+1. **[Deploy to Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FArunesh310%2FDashboard)** (imports this GitHub repo).  
+2. Add **Environment variables** from **`.env.example`** (`VITE_FIREBASE_*`).  
 3. **Redeploy** after saving env vars (Vite bakes them in at build time).  
-4. In Supabase **SQL Editor**, run **`supabase/schema.sql`** once.  
+4. In Firebase, deploy **`firestore.rules`**.  
 5. Open your Vercel URL → upload a CSV. Anyone opening that same URL loads the shared snapshot.
 
 ### Option B — Netlify
 
-Connect the GitHub repo, set the same two **`VITE_*`** variables under **Site configuration → Environment variables**, trigger a deploy.
+Connect the GitHub repo, set the **`VITE_FIREBASE_*`** variables under **Site configuration → Environment variables**, trigger a deploy.
 
-### Verify Supabase locally
+### Verify Firebase env locally
 
 After `.env` is filled:
 
@@ -109,11 +103,9 @@ After `.env` is filled:
 npm run check:cloud
 ```
 
-You should see `Supabase OK`. If the table is missing, run `supabase/schema.sql` in Supabase.
-
 ### Manual static hosting
 
-After `npm run build`, upload **`dist/`** to any static host. You must still configure **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`** in that host’s build environment (or your build will have no cloud sync).
+After `npm run build`, upload **`dist/`** to any static host. Configure **`VITE_FIREBASE_*`** in that host’s build environment (or your build will have no cloud sync).
 
 ## License
 
