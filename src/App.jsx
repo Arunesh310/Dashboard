@@ -1419,15 +1419,15 @@ export default function App() {
           headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
         }`}
       >
-        <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
-          <div className="min-w-0 flex-1">
-            <h1 className="bg-gradient-to-r from-sfx-ink via-sfx to-sfx-deep bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:via-sfx-cta dark:to-sfx xs:text-lg sm:text-xl">
+        <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-2 lg:px-6">
+          <div className="w-full max-w-full min-w-0 lg:min-w-[min(100%,19rem)] lg:flex-1">
+            <h1 className="text-balance bg-gradient-to-r from-sfx-ink via-sfx to-sfx-deep bg-clip-text text-base font-bold leading-snug tracking-tight text-transparent dark:from-white dark:via-sfx-cta dark:to-sfx xs:text-lg sm:text-xl">
               Shadowfax — LM ODC · CCTV Dashboard
             </h1>
-            <p className="text-[11px] font-medium text-sfx-muted dark:text-slate-400 sm:text-xs">
+            <p className="mt-0.5 text-[11px] font-medium leading-normal text-sfx-muted dark:text-slate-400 sm:text-xs">
               Fast. Flexible. Future-Ready.
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
+            <p className="mt-0.5 text-[11px] leading-normal text-slate-500 dark:text-slate-400 sm:text-xs">
               {headerStatusLine}
             </p>
             {cloudUpdatedAt && isCloudSnapshotConfigured() && !cloudLoading ? (
@@ -1458,7 +1458,7 @@ export default function App() {
               </p>
             ) : null}
           </div>
-          <div className="flex min-w-0 w-full flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between lg:w-auto lg:max-w-none lg:justify-end">
+          <div className="flex w-full min-w-0 max-w-full flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between lg:w-auto lg:max-w-full lg:flex-none lg:justify-end">
             <nav
               className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-sfx/15 bg-sfx-soft/90 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
               role="tablist"
