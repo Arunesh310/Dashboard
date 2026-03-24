@@ -1,3 +1,5 @@
+import { canonicalizeZoneLabel } from "./analytics.js";
+
 /**
  * @typedef {{
  *   cameraId: string,
@@ -190,8 +192,10 @@ export function aggregateZone(rows) {
   for (const r of rows) {
     const z = (r.zone || "").trim();
     if (!z) continue;
-    if (!m.has(z)) m.set(z, { total: 0, online: 0, offline: 0 });
-    const a = m.get(z);
+    const key = canonicalizeZoneLabel(z);
+    if (!key) continue;
+    if (!m.has(key)) m.set(key, { total: 0, online: 0, offline: 0 });
+    const a = m.get(key);
     a.total++;
     if (r.isOnline) a.online++;
     if (r.isOffline) a.offline++;

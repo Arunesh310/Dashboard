@@ -21,6 +21,7 @@ import {
   applyFilter,
   countByKind,
   aggregateByField,
+  canonicalizeZoneLabel,
   aggregateRca,
   aggregatePocProductivity,
   buildWeeklySeriesForKind,
@@ -730,7 +731,11 @@ export default function App() {
   }, [pocProductivityList]);
 
   const zonePairs = useMemo(
-    () => aggregateByField(filtered, colMapSafe.zone, 8, { skipEmpty: true }),
+    () =>
+      aggregateByField(filtered, colMapSafe.zone, 8, {
+        skipEmpty: true,
+        keyNormalizer: canonicalizeZoneLabel,
+      }),
     [filtered, colMapSafe.zone]
   );
 
@@ -824,7 +829,7 @@ export default function App() {
     const set = new Set();
     for (const r of annotated) {
       const v = r[z];
-      if (v != null && String(v).trim()) set.add(String(v).trim());
+      if (v != null && String(v).trim()) set.add(canonicalizeZoneLabel(String(v)));
     }
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [annotated, colMapSafe.zone]);
@@ -853,7 +858,7 @@ export default function App() {
     return annotated.filter((r) => {
       if (dataTableZone !== "all") {
         const zv = z ? String(r[z] ?? "").trim() : "";
-        if (zv !== dataTableZone) return false;
+        if (canonicalizeZoneLabel(zv) !== dataTableZone) return false;
       }
       if (dataTableRca !== "all") {
         const rv = getRcaValue(r, colMapSafe, fields).trim();
@@ -880,15 +885,16 @@ export default function App() {
   const donutData = useMemo(() => {
     const labels = zonePairs.map(([l]) => l);
     const data = zonePairs.map(([, v]) => v);
+    // Distinct hues only — avoid two yellows at i=1 and i=3 (East/West looked identical)
     const palette = [
       "#008A71",
       "#D5D226",
-      "#006b57",
-      "#F1EE1B",
-      "#0d9488",
       "#ea580c",
       "#7c3aed",
-      "#545454",
+      "#0d9488",
+      "#db2777",
+      "#ca8a04",
+      "#4f46e5",
     ];
     return {
       labels,
@@ -2086,8 +2092,9 @@ export default function App() {
                               stripExportRows(
                                 filtered.filter(
                                   (r) =>
-                                    String(r[colMapSafe.zone] ?? "").trim() ===
-                                    String(z).trim()
+                                    canonicalizeZoneLabel(
+                                      String(r[colMapSafe.zone] ?? "")
+                                    ) === canonicalizeZoneLabel(String(z))
                                 ),
                                 exportFields
                               ),

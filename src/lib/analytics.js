@@ -112,17 +112,39 @@ export function filterRowsForHotspots(rows) {
 }
 
 /**
- * @param {{ skipEmpty?: boolean }} [opts] If `skipEmpty`, rows with blank/null field are omitted (no "Unknown" bucket).
+ * Title-case words so "west", "West", "WEST" map to one bucket for zone charts.
+ * @param {string} s
+ */
+export function canonicalizeZoneLabel(s) {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  return t
+    .split(/\s+/)
+    .map((w) => (w.length ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ""))
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * @param {{ skipEmpty?: boolean; keyNormalizer?: (trimmed: string) => string }} [opts]
+ * If `skipEmpty`, rows with blank/null field are omitted (no "Unknown" bucket).
+ * `keyNormalizer` groups values (e.g. canonicalizeZoneLabel for zone columns).
  */
 export function aggregateByField(rows, fieldKey, limit = 12, opts = {}) {
   const skipEmpty = opts.skipEmpty === true;
+  const keyNormalizer = typeof opts.keyNormalizer === "function" ? opts.keyNormalizer : null;
   if (!fieldKey) return [];
   const counts = new Map();
   for (const r of rows) {
     const raw = r[fieldKey];
     const trimmed = raw != null && String(raw).trim() !== "" ? String(raw).trim() : "";
     if (skipEmpty && !trimmed) continue;
-    const label = trimmed || "Unknown";
+    let label;
+    if (trimmed) {
+      label = keyNormalizer ? keyNormalizer(trimmed) : trimmed;
+    } else {
+      label = "Unknown";
+    }
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   return [...counts.entries()]
