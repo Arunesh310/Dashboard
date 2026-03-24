@@ -151,6 +151,8 @@ function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
       "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
     orange:
       "border border-orange-400/30 bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md hover:from-orange-400 hover:to-orange-500",
+    sfxYellow:
+      "border border-sfx-yellow/40 bg-gradient-to-b from-sfx-cta to-sfx-yellow text-sfx-ink shadow-md shadow-sfx-yellow/15 hover:brightness-95",
     outline:
       "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm backdrop-blur-sm hover:border-slate-300 hover:bg-white dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800/80",
   };
@@ -269,6 +271,11 @@ const POC_SPARKLINE_PALETTE = [
   { border: "rgb(8 145 178)", fill: "rgba(8, 145, 178, 0.14)" },
   { border: "rgb(192 38 211)", fill: "rgba(192, 38, 211, 0.12)" },
 ];
+
+/** Shadowfax-themed horizontal bar fills for hub issue charts */
+const HUB_BAR_PARTIAL = "rgba(213, 210, 38, 0.92)";
+const HUB_BAR_FRAUD = "rgba(185, 28, 28, 0.92)";
+const HUB_BAR_CAMERA = "rgba(0, 138, 113, 0.92)";
 
 const FILTER_DEFS = [
   { id: "all", label: "All Data" },
@@ -2213,7 +2220,8 @@ export default function App() {
                 title="Partial Bagging by Hub"
                 icon="📦"
                 pairs={partialHub}
-                color="rgba(234, 88, 12, 0.9)"
+                color={HUB_BAR_PARTIAL}
+                rowsVariant="sfxYellow"
                 onDownloadSummary={() =>
                   downloadAggregateCsv("partial-bagging-by-hub-summary.csv", partialHub)
                 }
@@ -2233,7 +2241,8 @@ export default function App() {
                 title="LM Fraud by Hub"
                 icon="⚠"
                 pairs={fraudHub}
-                color="rgba(220, 38, 38, 0.9)"
+                color={HUB_BAR_FRAUD}
+                rowsVariant="red"
                 onDownloadSummary={() =>
                   downloadAggregateCsv("lm-fraud-by-hub-summary.csv", fraudHub)
                 }
@@ -2253,7 +2262,8 @@ export default function App() {
                 title="Camera Issues by Hub"
                 icon="📹"
                 pairs={cameraHub}
-                color="rgba(124, 58, 237, 0.9)"
+                color={HUB_BAR_CAMERA}
+                rowsVariant="blue"
                 onDownloadSummary={() =>
                   downloadAggregateCsv("camera-issues-by-hub-summary.csv", cameraHub)
                 }
@@ -2418,6 +2428,7 @@ function ChartCard({
   icon,
   pairs,
   color,
+  rowsVariant = "orange",
   onDownloadSummary,
   onDownloadRows,
   rowCount,
@@ -2437,7 +2448,7 @@ function ChartCard({
             label="Summary CSV"
             onClick={onDownloadSummary}
           />
-          <DownloadBtn count={rowCount} variant="orange" label="Rows CSV" onClick={onDownloadRows} />
+          <DownloadBtn count={rowCount} variant={rowsVariant} label="Rows CSV" onClick={onDownloadRows} />
         </div>
       </div>
       <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64 md:h-72">
