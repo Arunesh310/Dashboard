@@ -586,6 +586,8 @@ export default function App() {
   const shadowfaxSession = useShadowfaxSession();
   const [fileName, setFileName] = useState("");
   const [fields, setFields] = useState([]);
+  /** Same reference as `fields`; kept for CSV export columns and declared early to avoid TDZ in hooks below. */
+  const exportFields = fields;
   const [colMap, setColMap] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
@@ -1310,10 +1312,10 @@ export default function App() {
   const exportFullDashboardRows = useCallback(() => {
     downloadCsv(
       "dashboard-all-rows.csv",
-      stripExportRows(annotated, fields),
-      fields
+      stripExportRows(annotated, exportFields),
+      exportFields
     );
-  }, [annotated, fields]);
+  }, [annotated, exportFields]);
 
   const handleFile = useCallback(
     (file) => {
@@ -1373,8 +1375,6 @@ export default function App() {
     },
     [ingestParsed]
   );
-
-  const exportFields = fields;
 
   const pillCount = (id) => {
     if (id === "all") return annotated.length;
