@@ -558,7 +558,11 @@ export default function App() {
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
   const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudLoadStep, setCloudLoadStep] = useState(null);
   const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudSyncTarget, setCloudSyncTarget] = useState(null);
+  const [uploadPipelineBusy, setUploadPipelineBusy] = useState(false);
+  const [uploadPipelineTarget, setUploadPipelineTarget] = useState(null);
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
   const exportRootRef = useRef(null);
   const cameraStatusPdfRef = useRef(null);
@@ -1000,6 +1004,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       setCloudLoading(true);
+      setCloudLoadStep("fetch");
       try {
         const row = await loadSnapshot();
         if (cancelled || !row) return;
@@ -1055,12 +1060,17 @@ export default function App() {
           });
         };
 
+        setCloudLoadStep("main");
         await loadMain();
+        setCloudLoadStep("camera");
         await loadCamera();
       } catch (e) {
         if (!cancelled) setError(e.message || "Could not load cloud data.");
       } finally {
-        if (!cancelled) setCloudLoading(false);
+        if (!cancelled) {
+          setCloudLoading(false);
+          setCloudLoadStep(null);
+        }
       }
     })();
     return () => {
@@ -1152,6 +1162,8 @@ export default function App() {
         return;
       }
       setCameraStatusError("");
+      setUploadPipelineTarget("camera");
+      setUploadPipelineBusy(true);
       const reader = new FileReader();
       reader.onload = () => {
         const csvText = String(reader.result ?? "");
@@ -1159,29 +1171,44 @@ export default function App() {
           header: true,
           skipEmptyLines: true,
           complete: async (res) => {
-            if (res.errors?.length) {
-              setCameraStatusError(res.errors[0].message || "Could not parse CSV.");
-              return;
-            }
-            if (!applyCameraParseResult(res, file.name, new Date().toISOString())) return;
-            if (isCloudSnapshotConfigured()) {
-              setCloudSyncing(true);
-              try {
-                await saveCameraSnapshot(csvText, file.name);
-              } catch (e) {
-                setCameraStatusError(
-                  e.message ||
-                    "Saved locally, but camera snapshot could not sync to the cloud. Check Firebase env, Firestore rules, and Authentication."
-                );
-              } finally {
-                setCloudSyncing(false);
+            try {
+              if (res.errors?.length) {
+                setCameraStatusError(res.errors[0].message || "Could not parse CSV.");
+                return;
               }
+              if (!applyCameraParseResult(res, file.name, new Date().toISOString())) return;
+              if (isCloudSnapshotConfigured()) {
+                setCloudSyncTarget("camera");
+                setCloudSyncing(true);
+                try {
+                  await saveCameraSnapshot(csvText, file.name);
+                } catch (e) {
+                  setCameraStatusError(
+                    e.message ||
+                      "Saved locally, but camera snapshot could not sync to the cloud. Check Firebase env, Firestore rules, and Authentication."
+                  );
+                } finally {
+                  setCloudSyncing(false);
+                  setCloudSyncTarget(null);
+                }
+              }
+            } finally {
+              setUploadPipelineBusy(false);
+              setUploadPipelineTarget(null);
             }
           },
-          error: (err) => setCameraStatusError(err.message || "Read failed."),
+          error: (err) => {
+            setCameraStatusError(err.message || "Read failed.");
+            setUploadPipelineBusy(false);
+            setUploadPipelineTarget(null);
+          },
         });
       };
-      reader.onerror = () => setCameraStatusError("Could not read file.");
+      reader.onerror = () => {
+        setUploadPipelineBusy(false);
+        setUploadPipelineTarget(null);
+        setCameraStatusError("Could not read file.");
+      };
       reader.readAsText(file);
     },
     [applyCameraParseResult]
@@ -1210,6 +1237,8 @@ export default function App() {
         setError("Please upload a .csv file.");
         return;
       }
+      setUploadPipelineTarget("dashboard");
+      setUploadPipelineBusy(true);
       const reader = new FileReader();
       reader.onload = () => {
         const csvText = String(reader.result ?? "");
@@ -1217,30 +1246,45 @@ export default function App() {
           header: true,
           skipEmptyLines: true,
           complete: async (res) => {
-            if (res.errors?.length) {
-              setError(res.errors[0].message || "Could not parse CSV.");
-              return;
-            }
-            ingestParsed(res, file.name);
-            if (isCloudSnapshotConfigured()) {
-              setCloudSyncing(true);
-              try {
-                await saveSnapshot(csvText, file.name);
-                setCloudUpdatedAt(new Date().toISOString());
-              } catch (e) {
-                setError(
-                  e.message ||
-                    "Saved locally, but cloud sync failed. Check Firebase env vars and Firestore rules."
-                );
-              } finally {
-                setCloudSyncing(false);
+            try {
+              if (res.errors?.length) {
+                setError(res.errors[0].message || "Could not parse CSV.");
+                return;
               }
+              ingestParsed(res, file.name);
+              if (isCloudSnapshotConfigured()) {
+                setCloudSyncTarget("dashboard");
+                setCloudSyncing(true);
+                try {
+                  await saveSnapshot(csvText, file.name);
+                  setCloudUpdatedAt(new Date().toISOString());
+                } catch (e) {
+                  setError(
+                    e.message ||
+                      "Saved locally, but cloud sync failed. Check Firebase env vars and Firestore rules."
+                  );
+                } finally {
+                  setCloudSyncing(false);
+                  setCloudSyncTarget(null);
+                }
+              }
+            } finally {
+              setUploadPipelineBusy(false);
+              setUploadPipelineTarget(null);
             }
           },
-          error: (err) => setError(err.message || "Read failed."),
+          error: (err) => {
+            setError(err.message || "Read failed.");
+            setUploadPipelineBusy(false);
+            setUploadPipelineTarget(null);
+          },
         });
       };
-      reader.onerror = () => setError("Could not read file.");
+      reader.onerror = () => {
+        setUploadPipelineBusy(false);
+        setUploadPipelineTarget(null);
+        setError("Could not read file.");
+      };
       reader.readAsText(file);
     },
     [ingestParsed]
@@ -1253,11 +1297,120 @@ export default function App() {
     return annotated.filter((r) => r.__kind === id).length;
   };
 
+  const headerStatusLine = useMemo(() => {
+    if (pdfExporting) return "Building PDF…";
+    if (!isCloudSnapshotConfigured()) {
+      if (uploadPipelineBusy) {
+        return uploadPipelineTarget === "camera"
+          ? "Processing camera CSV…"
+          : "Processing dashboard CSV…";
+      }
+      return "Local";
+    }
+    if (cloudLoading) {
+      if (cloudLoadStep === "fetch") return "Connecting to Firestore…";
+      if (cloudLoadStep === "main") return "Loading dashboard from cloud…";
+      if (cloudLoadStep === "camera") return "Loading camera data from cloud…";
+      return "Loading shared snapshot from Firestore…";
+    }
+    if (cloudSyncing) return "Saving snapshot to Firestore…";
+    if (uploadPipelineBusy) {
+      return uploadPipelineTarget === "camera"
+        ? "Reading and parsing camera CSV…"
+        : "Reading and parsing dashboard CSV…";
+    }
+    return "Cloud sync";
+  }, [
+    pdfExporting,
+    cloudLoading,
+    cloudLoadStep,
+    cloudSyncing,
+    uploadPipelineBusy,
+    uploadPipelineTarget,
+  ]);
+
+  const busyOverlayActive =
+    pdfExporting || uploadPipelineBusy || cloudLoading || cloudSyncing;
+
+  let overlayTitle = "";
+  let overlaySubtitle = "";
+  if (pdfExporting) {
+    overlayTitle = "Building PDF";
+    overlaySubtitle =
+      activeTab === "camera"
+        ? "Rendering camera status — large reports may take a little longer."
+        : "Rendering dashboard — long pages may take a little longer.";
+  } else if (cloudLoading) {
+    overlayTitle = "Loading shared data";
+    if (cloudLoadStep === "fetch") {
+      overlaySubtitle = "Fetching your snapshot from Firestore…";
+    } else if (cloudLoadStep === "main") {
+      overlaySubtitle = "Parsing dashboard CSV from cloud…";
+    } else if (cloudLoadStep === "camera") {
+      overlaySubtitle = "Parsing camera status from cloud…";
+    } else {
+      overlaySubtitle = "Preparing your workspace…";
+    }
+  } else if (cloudSyncing) {
+    if (cloudSyncTarget === "camera") {
+      overlayTitle = "Syncing camera status";
+      overlaySubtitle = "Uploading camera CSV to the cloud…";
+    } else {
+      overlayTitle = "Syncing dashboard";
+      overlaySubtitle = "Uploading your issues CSV to the cloud…";
+    }
+  } else if (uploadPipelineBusy) {
+    overlayTitle =
+      uploadPipelineTarget === "camera" ? "Preparing camera status" : "Preparing dashboard";
+    overlaySubtitle =
+      uploadPipelineTarget === "camera"
+        ? "Reading and parsing your camera CSV…"
+        : "Reading and parsing your issues CSV…";
+  }
+
   return (
     <div
       ref={exportRootRef}
       className="min-h-screen min-w-0 bg-sfx-soft/70 transition-colors duration-200 dark:bg-slate-950"
     >
+      {busyOverlayActive ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8"
+          data-html2pdf-ignore="true"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div
+            className="absolute inset-0 bg-slate-900/25 backdrop-blur-[2px] dark:bg-slate-950/55 dark:backdrop-blur-md"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(0,138,113,0.18),transparent_55%)] dark:bg-[radial-gradient(ellipse_75%_45%_at_50%_-15%,rgba(0,138,113,0.22),transparent_50%)]"
+            aria-hidden
+          />
+          <div className="surface-card relative max-w-md border-sfx/20 px-8 py-10 text-center shadow-card dark:border-sfx/25 dark:shadow-card-dark sm:px-10">
+            <div
+              className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sfx/15 via-sfx-soft/80 to-sfx-cta/15 ring-1 ring-sfx/20 dark:from-sfx/25 dark:via-slate-800/80 dark:to-sfx-cta/10 dark:ring-sfx/30"
+              aria-hidden
+            >
+              <div className="relative h-10 w-10">
+                <div className="absolute inset-0 rounded-full border-2 border-sfx/15 dark:border-slate-600/60" />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-sfx/20 border-t-sfx border-r-sfx-cta dark:border-slate-600/70 dark:border-t-sfx dark:border-r-sfx-cta" />
+              </div>
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-sfx-ink dark:text-slate-100 sm:text-xl">
+              {overlayTitle}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-sfx-muted dark:text-slate-400">
+              {overlaySubtitle}
+            </p>
+            <p className="mt-6 text-[11px] font-medium uppercase tracking-[0.14em] text-sfx/80 dark:text-sfx-cta/90">
+              Shadowfax — LM ODC
+            </p>
+          </div>
+        </div>
+      ) : null}
       <header
         ref={headerRef}
         className={`fixed left-0 right-0 top-0 z-50 border-b border-sfx/15 bg-white/90 pt-[env(safe-area-inset-top,0px)] text-sfx-ink shadow-sm shadow-sfx/5 backdrop-blur-xl transition-transform duration-300 ease-out will-change-transform dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)] touch-manipulation ${
@@ -1273,13 +1426,7 @@ export default function App() {
               Fast. Flexible. Future-Ready.
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
-              {isCloudSnapshotConfigured()
-                ? cloudLoading
-                  ? "Loading shared snapshot from Firestore…"
-                  : cloudSyncing
-                    ? "Saving snapshot to Firestore…"
-                    : "Cloud sync"
-                : "Local"}
+              {headerStatusLine}
             </p>
             {cloudUpdatedAt && isCloudSnapshotConfigured() && !cloudLoading ? (
               <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
