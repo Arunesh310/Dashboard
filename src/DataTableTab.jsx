@@ -28,7 +28,7 @@ function DownloadIcon({ className = "h-4 w-4" }) {
 function zoneBadgeClass(zone) {
   const z = String(zone ?? "").toLowerCase();
   if (z.includes("north"))
-    return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35";
+    return "bg-sfx-soft text-sfx-deep ring-1 ring-sfx/25 dark:bg-sfx/15 dark:text-sfx-cta dark:ring-sfx/35";
   if (z.includes("east"))
     return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
   if (z.includes("west"))
@@ -121,7 +121,7 @@ export function DataTableTab({
   const rangeEnd = Math.min((page + 1) * DATA_TABLE_PAGE_SIZE, filteredRows.length);
 
   const selectClass =
-    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-blue-400 dark:focus:ring-blue-400/25";
+    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-sfx dark:focus:ring-sfx/25";
 
   const exportRow = (r) => {
     downloadCsv("data-table-row.csv", stripExportRows([r], exportFields), exportFields);
@@ -158,7 +158,7 @@ export function DataTableTab({
             placeholder="Search manifests, hubs…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
+            className="w-full rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/25 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-sfx dark:focus:ring-sfx/20"
             aria-label="Search manifests and hubs"
           />
         </div>
@@ -296,7 +296,7 @@ export function DataTableTab({
                       </td>
                     ) : null}
                     {colMapSafe.cctv ? (
-                      <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-blue-600 dark:text-blue-400">
+                      <td className="px-2 py-2 sm:px-4 sm:py-2.5 text-sfx dark:text-sfx-cta">
                         {cctvShowsIcon(r[colMapSafe.cctv]) ? (
                           <CameraIcon className="h-5 w-5" aria-label="CCTV available" />
                         ) : (

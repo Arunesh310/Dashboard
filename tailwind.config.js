@@ -4,11 +4,26 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      colors: {
+        // Shadowfax.in — greens, yellows, and ink from public site (approximate to live CSS)
+        sfx: {
+          DEFAULT: "#008A71",
+          deep: "#006b57",
+          soft: "#E6F4F0",
+          yellow: "#D5D226",
+          cta: "#F1EE1B",
+          cream: "#FFFDB1",
+          ink: "#332F22",
+          muted: "#545454",
+          body: "#363D47",
+        },
+      },
       screens: {
         xs: "480px",
       },
       fontFamily: {
         sans: [
+          '"Montserrat"',
           '"Plus Jakarta Sans"',
           "ui-sans-serif",
           "system-ui",

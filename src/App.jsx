@@ -59,7 +59,7 @@ ChartJS.register(
   Filler
 );
 
-ChartJS.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+ChartJS.defaults.font.family = "'Montserrat', 'Plus Jakarta Sans', system-ui, sans-serif";
 
 function DownloadIcon({ className = "h-4 w-4" }) {
   return (
@@ -145,7 +145,7 @@ function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
     amber:
       "border border-amber-400/30 bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-md shadow-amber-900/10 hover:from-amber-400 hover:to-amber-500",
     blue:
-      "border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-md shadow-blue-900/15 hover:from-blue-500 hover:to-blue-600",
+      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25 hover:from-sfx-deep hover:to-sfx",
     slate:
       "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
     orange:
@@ -209,7 +209,7 @@ function ThemeToggle() {
 function zoneBadgeClass(zone) {
   const z = String(zone ?? "").toLowerCase();
   if (z.includes("north"))
-    return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35";
+    return "bg-sfx-soft text-sfx-deep ring-1 ring-sfx/25 dark:bg-sfx/15 dark:text-sfx-cta dark:ring-sfx/35";
   if (z.includes("east"))
     return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
   if (z.includes("west"))
@@ -880,7 +880,16 @@ export default function App() {
   const donutData = useMemo(() => {
     const labels = zonePairs.map(([l]) => l);
     const data = zonePairs.map(([, v]) => v);
-    const palette = ["#2563eb", "#ea580c", "#16a34a", "#7c3aed", "#0d9488", "#db2777", "#ca8a04", "#4f46e5"];
+    const palette = [
+      "#008A71",
+      "#D5D226",
+      "#006b57",
+      "#F1EE1B",
+      "#0d9488",
+      "#ea580c",
+      "#7c3aed",
+      "#545454",
+    ];
     return {
       labels,
       datasets: [
@@ -1234,20 +1243,23 @@ export default function App() {
   return (
     <div
       ref={exportRootRef}
-      className="min-h-screen min-w-0 bg-slate-50 transition-colors duration-200 dark:bg-slate-950"
+      className="min-h-screen min-w-0 bg-sfx-soft/70 transition-colors duration-200 dark:bg-slate-950"
     >
       <header
         ref={headerRef}
-        className={`fixed left-0 right-0 top-0 z-50 border-b border-slate-200/90 bg-white/85 pt-[env(safe-area-inset-top,0px)] text-slate-900 shadow-sm backdrop-blur-xl transition-transform duration-300 ease-out will-change-transform dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)] touch-manipulation ${
+        className={`fixed left-0 right-0 top-0 z-50 border-b border-sfx/15 bg-white/90 pt-[env(safe-area-inset-top,0px)] text-sfx-ink shadow-sm shadow-sfx/5 backdrop-blur-xl transition-transform duration-300 ease-out will-change-transform dark:border-slate-800/80 dark:bg-slate-950/90 dark:text-slate-100 dark:shadow-[0_8px_32px_rgb(0_0_0/0.35)] touch-manipulation ${
           headerHidden ? "-translate-y-full lg:translate-y-0" : "translate-y-0"
         }`}
       >
         <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="min-w-0 flex-1">
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-400 xs:text-lg sm:text-xl">
-              LM ODC - CCTV Dashboard
+            <h1 className="bg-gradient-to-r from-sfx-ink via-sfx to-sfx-deep bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:via-sfx-cta dark:to-sfx xs:text-lg sm:text-xl">
+              Shadowfax — LM ODC · CCTV Dashboard
             </h1>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
+            <p className="text-[11px] font-medium text-sfx-muted dark:text-slate-400 sm:text-xs">
+              Fast. Flexible. Future-Ready.
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
               {isSupabaseConfigured()
                 ? cloudLoading
                   ? "Loading shared snapshot from Supabase…"
@@ -1286,7 +1298,7 @@ export default function App() {
           </div>
           <div className="flex min-w-0 w-full flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between lg:w-auto lg:max-w-none lg:justify-end">
             <nav
-              className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
+              className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-sfx/15 bg-sfx-soft/90 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
               role="tablist"
               aria-label="Main views"
             >
@@ -1298,8 +1310,8 @@ export default function App() {
                   onClick={() => setActiveTab("dashboard")}
                   className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "dashboard"
-                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
                   }`}
                 >
                   Dashboard
@@ -1311,8 +1323,8 @@ export default function App() {
                   onClick={() => setActiveTab("data")}
                   className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "data"
-                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
                   }`}
                 >
                   Data Table
@@ -1324,16 +1336,16 @@ export default function App() {
                   onClick={() => setActiveTab("camera")}
                   className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "camera"
-                      ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
-                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
                   }`}
                 >
                   <span
                     className="relative flex h-2 w-2 shrink-0 items-center justify-center"
                     aria-hidden
                   >
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500/40 motion-safe:animate-ping dark:bg-emerald-400/35" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_6px_rgba(52,211,153,0.45)]" />
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-sfx/35 motion-safe:animate-ping dark:bg-sfx/30" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sfx shadow-[0_0_6px_rgba(0,138,113,0.45)] dark:bg-sfx-cta dark:shadow-[0_0_6px_rgba(213,210,38,0.35)]" />
                   </span>
                   Camera Status
                 </button>
@@ -1412,7 +1424,7 @@ export default function App() {
                     exportFields
                   )
                 }
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-blue-900/20 transition-all duration-200 hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep px-3 py-2 text-xs font-semibold text-white shadow-md shadow-sfx-deep/25 transition-all duration-200 hover:from-sfx-deep hover:to-sfx active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark"
               >
                 <span>
                   <span className="sm:hidden">CSV</span>
@@ -1447,8 +1459,8 @@ export default function App() {
         }}
         className={
           activeTab === "data"
-            ? "w-full min-w-0 max-w-full overflow-x-hidden bg-slate-100 pb-[max(5rem,env(safe-area-inset-bottom,0px))] dark:bg-slate-950 sm:pb-16"
-            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 overflow-x-hidden bg-slate-100/80 px-3 py-4 pb-[max(5rem,env(safe-area-inset-bottom,0px))] sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
+            ? "w-full min-w-0 max-w-full overflow-x-hidden bg-sfx-soft/50 pb-[max(5rem,env(safe-area-inset-bottom,0px))] dark:bg-slate-950 sm:pb-16"
+            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 overflow-x-hidden bg-sfx-soft/40 px-3 py-4 pb-[max(5rem,env(safe-area-inset-bottom,0px))] sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
         }
       >
         {activeTab === "camera" ? (
@@ -1539,7 +1551,7 @@ export default function App() {
                     key={p.id}
                     className={`flex min-w-0 w-full flex-col gap-2 rounded-xl border px-2 py-2 shadow-sm transition-all xs:flex-row xs:items-center xs:gap-1 xs:rounded-full xs:px-1 xs:py-1 xs:pl-3 sm:w-auto ${
                       active
-                        ? "border-blue-500/80 bg-blue-50 ring-2 ring-blue-200/80 dark:border-blue-500/50 dark:bg-blue-950/50 dark:ring-blue-500/30"
+                        ? "border-sfx/70 bg-sfx-soft ring-2 ring-sfx/25 dark:border-sfx/50 dark:bg-sfx-deep/30 dark:ring-sfx/35"
                         : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
                     }`}
                   >
@@ -1577,7 +1589,7 @@ export default function App() {
                     ? `Unique ${colMapSafe.manifest} values`
                     : "All loaded rows",
                   icon: "📊",
-                  tone: "text-blue-600 dark:text-blue-400",
+                  tone: "text-sfx dark:text-sfx-cta",
                   dl: () =>
                     downloadCsv("all-records.csv", stripExportRows(annotated, exportFields), exportFields),
                 },
@@ -2109,7 +2121,7 @@ export default function App() {
                   <HorizontalBarChart
                     labels={rcaPairs.map(([l]) => l)}
                     values={rcaPairs.map(([, v]) => v)}
-                    color="rgba(37, 99, 235, 0.85)"
+                    color="rgba(0, 138, 113, 0.9)"
                   />
                 ) : (
                   <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">

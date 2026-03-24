@@ -11,14 +11,14 @@
   body {
     margin: 0;
     overflow-x: clip;
-    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Montserrat", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   ::selection {
-    @apply bg-blue-500/25 text-slate-900 dark:bg-sky-500/30 dark:text-slate-100;
+    @apply bg-sfx/20 text-sfx-ink dark:bg-sfx/35 dark:text-slate-100;
   }
 }
 
@@ -32,7 +32,7 @@
   }
 
   .btn-header-icon {
-    @apply btn-header border-slate-200/90 bg-white/90 text-slate-600 backdrop-blur-sm hover:border-blue-300/60 hover:bg-blue-50/80 hover:text-blue-700 dark:border-slate-600/80 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-sky-500/40 dark:hover:bg-sky-950/40 dark:hover:text-sky-200;
+    @apply btn-header border-slate-200/90 bg-white/90 text-slate-600 backdrop-blur-sm hover:border-sfx/35 hover:bg-sfx-soft/90 hover:text-sfx dark:border-slate-600/80 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-sfx/50 dark:hover:bg-slate-800 dark:hover:text-sfx-cta;
   }
 
   .surface-card {
@@ -40,6 +40,6 @@
   }
 
   .surface-muted {
-    @apply rounded-xl border border-slate-100 bg-slate-50/90 dark:border-slate-700/40 dark:bg-slate-800/40;
+    @apply rounded-xl border border-sfx/10 bg-sfx-soft/50 dark:border-slate-700/40 dark:bg-slate-800/40;
   }
 }

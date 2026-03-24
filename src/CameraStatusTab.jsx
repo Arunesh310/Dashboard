@@ -35,7 +35,7 @@ function DownloadIcon({ className = "h-4 w-4" }) {
 function zoneBadgeClass(zone) {
   const z = String(zone ?? "").toLowerCase();
   if (z.includes("north"))
-    return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35";
+    return "bg-sfx-soft text-sfx-deep ring-1 ring-sfx/25 dark:bg-sfx/15 dark:text-sfx-cta dark:ring-sfx/35";
   if (z.includes("east"))
     return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
   if (z.includes("west"))
@@ -52,7 +52,7 @@ function rcaPillClass(remark) {
   if (s.includes("power") || s.includes("electric"))
     return "bg-amber-100 text-amber-950 ring-1 ring-amber-200/80 dark:bg-amber-500/15 dark:text-amber-100 dark:ring-amber-400/35";
   if (s.includes("network") || s.includes("link") || s.includes("cable"))
-    return "bg-sky-100 text-sky-900 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35";
+    return "bg-sfx-soft text-sfx-deep ring-1 ring-sfx/25 dark:bg-sfx/15 dark:text-sfx-cta dark:ring-sfx/35";
   if (s.includes("hardware") || s.includes("fault") || s.includes("defect"))
     return "bg-red-100 text-red-900 ring-1 ring-red-200/80 dark:bg-red-500/15 dark:text-red-200 dark:ring-red-400/35";
   return "bg-violet-100 text-violet-900 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/35";
@@ -63,7 +63,7 @@ function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
     dark:
       "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn hover:from-slate-600 hover:to-slate-800 hover:shadow-md dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark dark:hover:from-slate-500 dark:hover:to-slate-900",
     blue:
-      "border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 text-white shadow-md shadow-blue-900/15 hover:from-blue-500 hover:to-blue-600",
+      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25 hover:from-sfx-deep hover:to-sfx",
     slate:
       "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
     outline:
@@ -212,7 +212,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   const rcaAllView = useMemo(() => rcaAllBreakdown(filtered), [filtered]);
 
   const selectClass =
-    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-blue-400 dark:focus:ring-blue-400/25";
+    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-sfx dark:focus:ring-sfx/25";
 
   const donutData = useMemo(
     () => {
@@ -225,8 +225,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           : [kpis.online, kpis.offline];
       const backgroundColor =
         neither > 0
-          ? ["#16a34a", "#dc2626", "#64748b"]
-          : ["#16a34a", "#dc2626"];
+          ? ["#008A71", "#dc2626", "#64748b"]
+          : ["#008A71", "#dc2626"];
       return {
         labels,
         datasets: [
@@ -468,7 +468,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             value: kpis.total,
             sub: "Current view",
             icon: "📹",
-            tone: "text-blue-600 dark:text-blue-400",
+            tone: "text-sfx dark:text-sfx-cta",
             onDl: () => onDownloadFiltered(filtered, "camera-status-all-in-view.csv"),
             dlTitle: "Download all cameras in current view",
           },
@@ -828,12 +828,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         )}
       </section>
 
-      <div className="flex flex-col items-stretch gap-3 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-50/90 to-white px-4 py-4 dark:from-blue-950/30 dark:to-slate-900/40 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col items-stretch gap-3 rounded-2xl border border-sfx/25 bg-gradient-to-br from-sfx-soft/90 to-white px-4 py-4 dark:from-sfx-deep/25 dark:to-slate-900/40 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Detailed export</p>
         <button
           type="button"
           onClick={onDownloadDetailed}
-          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-500/25 bg-gradient-to-b from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-900/20 transition-all duration-200 hover:from-blue-500 hover:to-blue-600 active:scale-[0.98] dark:shadow-btn-dark sm:min-h-0"
+          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-sfx-deep/25 transition-all duration-200 hover:from-sfx-deep hover:to-sfx active:scale-[0.98] dark:shadow-btn-dark sm:min-h-0"
         >
           Download detailed data
           <DownloadIcon className="h-4 w-4 shrink-0" />
