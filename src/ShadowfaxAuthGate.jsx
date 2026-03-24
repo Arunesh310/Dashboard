@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import {
@@ -14,6 +13,7 @@ import {
   requiresShadowfaxGate,
   resolveAuthUserEmail,
 } from "./lib/firebaseClient.js";
+import { ShadowfaxSessionContext } from "./shadowfaxSession.jsx";
 
 export function ShadowfaxAuthGate({ children }) {
   const gateOn = requiresShadowfaxGate();
@@ -75,7 +75,7 @@ export function ShadowfaxAuthGate({ children }) {
           setError(
             resolved
               ? "Only @shadowfax.in accounts can access this dashboard."
-              : "Could not read your email from Google. Try full-page sign-in below."
+              : "Could not read your email from Google."
           );
           setLoading(false);
           return;
@@ -118,7 +118,7 @@ export function ShadowfaxAuthGate({ children }) {
       if (code === "auth/popup-closed-by-user") {
         setError("Sign-in was cancelled.");
       } else if (code === "auth/popup-blocked") {
-        setError("Pop-up was blocked. Allow pop-ups for this site or use full-page sign-in below.");
+        setError("Pop-up was blocked. Allow pop-ups for this site and try again.");
       } else if (code === "auth/cancelled-popup-request") {
         /* another popup already open */
       } else if (code === "auth/account-exists-with-different-credential") {
@@ -133,25 +133,10 @@ export function ShadowfaxAuthGate({ children }) {
     }
   }
 
-  async function handleGoogleRedirectSignIn() {
-    setError("");
-    if (!isCloudSnapshotConfigured()) {
-      setError("Firebase is not configured. Set VITE_FIREBASE_* in your environment.");
-      return;
-    }
-    const auth = getFirebaseAuth();
-    if (!auth) return;
-    try {
-      await signInWithRedirect(auth, getGoogleAuthProvider());
-    } catch (err) {
-      setError(err.message || "Could not start Google sign-in.");
-    }
-  }
-
-  async function handleSignOut() {
+  const handleSignOut = useCallback(async () => {
     const auth = getFirebaseAuth();
     if (auth) await signOut(auth);
-  }
+  }, []);
 
   if (!gateOn) return children;
 
@@ -182,11 +167,7 @@ export function ShadowfaxAuthGate({ children }) {
       <div className="flex min-h-screen items-center justify-center bg-sfx-soft/80 px-4 dark:bg-slate-950">
         <div className="surface-card w-full max-w-md border-sfx/20">
           <h1 className="text-lg font-bold text-sfx-ink dark:text-slate-100">Shadowfax sign in</h1>
-          <p className="mt-2 text-sm text-sfx-muted dark:text-slate-400">
-            Sign in with your Google account. Only <span className="font-semibold text-sfx dark:text-sfx-cta">@shadowfax.in</span>{" "}
-            email addresses can access this dashboard. You may see Google’s standard permission screen—that&apos;s required by
-            Google.
-          </p>
+          <p className="mt-1.5 text-sm text-sfx-muted dark:text-slate-400">for shadowfax employees only</p>
           <button
             type="button"
             disabled={googleBusy}
@@ -213,14 +194,6 @@ export function ShadowfaxAuthGate({ children }) {
             </svg>
             {googleBusy ? "Opening Google…" : "Continue with Google"}
           </button>
-          <button
-            type="button"
-            disabled={googleBusy}
-            onClick={handleGoogleRedirectSignIn}
-            className="mt-2 w-full rounded-xl border border-slate-200/80 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
-          >
-            Full-page Google sign-in (if the pop-up doesn’t return you here)
-          </button>
           {error ? (
             <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
               {error}
@@ -231,21 +204,11 @@ export function ShadowfaxAuthGate({ children }) {
     );
   }
 
-  const displayEmail = user.email || user.providerData?.find((p) => p.email)?.email || "Signed in";
+  const displayEmail = user.email || user.providerData?.find((p) => p.email)?.email || "";
 
   return (
-    <>
+    <ShadowfaxSessionContext.Provider value={{ email: displayEmail, signOut: handleSignOut }}>
       {children}
-      <div className="fixed bottom-3 right-3 z-[60] flex max-w-[min(100vw-1.5rem,20rem)] items-center gap-2 rounded-xl border border-slate-200/90 bg-white/95 px-2 py-1.5 text-[11px] shadow-md dark:border-slate-700 dark:bg-slate-900/95 sm:text-xs">
-        <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-400">{displayEmail}</span>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-        >
-          Sign out
-        </button>
-      </div>
-    </>
+    </ShadowfaxSessionContext.Provider>
   );
 }

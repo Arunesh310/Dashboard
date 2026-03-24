@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme.jsx";
+import { useShadowfaxSession } from "./shadowfaxSession.jsx";
 import Papa from "papaparse";
 import {
   Chart as ChartJS,
@@ -535,6 +536,7 @@ function useScrollHideHeader(activeTab) {
 
 export default function App() {
   const { isDark } = useTheme();
+  const shadowfaxSession = useShadowfaxSession();
   const [fileName, setFileName] = useState("");
   const [fields, setFields] = useState([]);
   const [colMap, setColMap] = useState(null);
@@ -1532,6 +1534,36 @@ export default function App() {
               />
             </label>
             <ThemeToggle />
+            {shadowfaxSession ? (
+              <button
+                type="button"
+                data-html2pdf-ignore="true"
+                aria-label="Log out"
+                onClick={() => void shadowfaxSession.signOut()}
+                title={
+                  shadowfaxSession.email
+                    ? `Signed in as ${shadowfaxSession.email}. Click to log out.`
+                    : "Log out"
+                }
+                className="btn-header-ghost hover:border-sfx/35 hover:text-sfx dark:hover:border-sfx/50 dark:hover:text-sfx-cta"
+              >
+                <svg
+                  className="h-4 w-4 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                  />
+                </svg>
+                <span className="hidden sm:inline">Log out</span>
+              </button>
+            ) : null}
             <button
               type="button"
               data-html2pdf-ignore="true"
