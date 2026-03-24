@@ -42,13 +42,16 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 To sync one CSV across **all users** over the internet:
 
 1. Create a Firebase project, enable **Firestore**, and add a **Web app** to get the config object.
-2. Deploy **`firestore.rules`** (CLI: `firebase deploy --only firestore:rules`, or paste rules in **Firestore → Rules**). The bundled rules allow **unauthenticated** read/write on **`dashboard_snapshot` only** — no Firebase Authentication setup required.
-3. In the project root, create **`.env`** from **`.env.example`** with your `VITE_FIREBASE_*` values.
-4. Restart `npm run dev` or rebuild for production.
+2. Enable **Authentication → Sign-in method → Google**. (Email/Password is optional; the app sign-in UI is **Google only**.) Under **Authentication → Settings → Authorized domains**, add your production host (e.g. `your-app.vercel.app`).
+3. Deploy **`firestore.rules`** (CLI: `firebase deploy --only firestore:rules`, or paste in **Firestore → Rules**). The bundled rules allow **only signed-in users** whose email matches **`@shadowfax.in`** (case-insensitive) to read/write `dashboard_snapshot` and `dashboard_snapshot_chunks`.
+4. In the project root, create **`.env`** from **`.env.example`**: set all `VITE_FIREBASE_*` values; for production, set **`VITE_SHADOWFAX_AUTH=true`** so the app shows a sign-in screen and accepts only `@shadowfax.in` addresses.
+5. Restart `npm run dev` or rebuild for production.
 
 **Behavior:** On load, if env vars are set, the app **reads** document `dashboard_snapshot/shared` and parses CSV fields like a local upload. After upload, it **merges** the snapshot so others see it on refresh. Camera Status CSV uses the same document with separate fields.
 
-**Security note:** Firebase **web config is public**; with these rules, **anyone who has your config** can change that Firestore document (similar to a leaked public API key). Use a private deploy URL or tighten rules + Auth later. Never put a **service account** or Admin SDK key in Vite env.
+**Security note:** Firebase **web config is public**; access control is **Firestore rules + Google sign-in**. Only `@shadowfax.in` accounts pass the app and rules. You can restrict who gets Google accounts via your Google Workspace admin; consider disabling **Email/Password** in Firebase if unused. Never put a **service account** or Admin SDK key in Vite env.
+
+**Local dev without login:** set `VITE_SHADOWFAX_AUTH=false` and either use emulators or temporarily relax Firestore rules (not recommended for production).
 
 ## Scripts
 

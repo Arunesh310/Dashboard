@@ -1,13 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // No Firebase Auth required — open read/write on these paths only (fine for a private/internal
-    // URL; anyone with your web config can change these docs). Tighten later with request.auth != null.
+    function isShadowfaxUser() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('(?i)^.+@shadowfax[.]in$');
+    }
+
     match /dashboard_snapshot/{docId} {
-      allow read, write: if true;
+      allow read, write: if isShadowfaxUser();
     }
     match /dashboard_snapshot_chunks/{docId} {
-      allow read, write: if true;
+      allow read, write: if isShadowfaxUser();
     }
   }
 }
