@@ -32,8 +32,10 @@ import {
   buildWeeklyPivotRows,
   getFilledWeekKeysBetweenMinMax,
   parseFlexibleDate,
+  weekKeyFromDate,
   filterRowsForHotspots,
   ISSUE_KIND_LABELS,
+  rowsMatchingRcaAggregateKey,
 } from "./lib/analytics.js";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
 import { isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
@@ -138,36 +140,70 @@ function ChevronDownIcon({ className = "h-5 w-5", expanded }) {
   );
 }
 
-function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
+/** Count/slice = filtered subset; download icon = full dataset (when both handlers differ). */
+function DownloadBtn({
+  count,
+  label,
+  variant = "dark",
+  onClickSlice,
+  onClickFull,
+  /** @deprecated use onClickSlice + onClickFull */
+  onClick,
+  disabled,
+  hideCount,
+}) {
+  const slice = onClickSlice ?? onClick;
+  const full = onClickFull ?? onClick ?? onClickSlice;
   const styles = {
     dark:
-      "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn hover:from-slate-600 hover:to-slate-800 hover:shadow-md dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark dark:hover:from-slate-500 dark:hover:to-slate-900",
+      "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark",
     red:
-      "border border-red-500/25 bg-gradient-to-b from-red-600 to-red-700 text-white shadow-md shadow-red-900/15 hover:from-red-500 hover:to-red-600",
+      "border border-red-500/25 bg-gradient-to-b from-red-600 to-red-700 text-white shadow-md shadow-red-900/15",
     amber:
-      "border border-amber-400/30 bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-md shadow-amber-900/10 hover:from-amber-400 hover:to-amber-500",
+      "border border-amber-400/30 bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-md shadow-amber-900/10",
     blue:
-      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25 hover:from-sfx-deep hover:to-sfx",
+      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25",
     slate:
-      "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
+      "border border-slate-200/90 bg-white text-slate-800 shadow-sm dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100",
     orange:
-      "border border-orange-400/30 bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md hover:from-orange-400 hover:to-orange-500",
+      "border border-orange-400/30 bg-gradient-to-b from-orange-500 to-orange-600 text-white shadow-md",
     sfxYellow:
-      "border border-sfx-yellow/40 bg-gradient-to-b from-sfx-cta to-sfx-yellow text-sfx-ink shadow-md shadow-sfx-yellow/15 hover:brightness-95",
+      "border border-sfx-yellow/40 bg-gradient-to-b from-sfx-cta to-sfx-yellow text-sfx-ink shadow-md shadow-sfx-yellow/15",
     outline:
-      "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm backdrop-blur-sm hover:border-slate-300 hover:bg-white dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800/80",
+      "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm backdrop-blur-sm dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200",
   };
+  const divide =
+    variant === "slate" || variant === "outline"
+      ? "divide-slate-200/90 dark:divide-slate-600/80"
+      : "divide-white/20";
+  const hit = "transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40";
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
+    <span
+      className={`inline-flex items-stretch overflow-hidden rounded-xl ${styles[variant]} ${hit} divide-x ${divide}`}
       title={label}
-      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${styles[variant]}`}
     >
-      <span>{shortCount(count)}</span>
-      <DownloadIcon className="h-4 w-4 opacity-90" />
-    </button>
+      {hideCount ? null : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={slice}
+          title={`${label} — filtered slice`}
+          className="px-2.5 py-1.5 text-sm font-semibold"
+        >
+          {shortCount(count)}
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={full}
+        title={`${label} — full dataset`}
+        aria-label={`${label} — full dataset`}
+        className={`inline-flex items-center justify-center px-2 py-1.5 ${hideCount ? "px-3" : ""}`}
+      >
+        <DownloadIcon className="h-4 w-4 opacity-90" />
+      </button>
+    </span>
   );
 }
 
@@ -286,7 +322,7 @@ const FILTER_DEFS = [
   { id: "camera_issues", label: "Camera Issues" },
 ];
 
-function HorizontalBarChart({ labels, values, color }) {
+function HorizontalBarChart({ labels, values, color, onBarSelect }) {
   const { isDark } = useTheme();
   const barGrid = useMemo(
     () => ({
@@ -316,6 +352,11 @@ function HorizontalBarChart({ labels, values, color }) {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
+      onClick: (_evt, elements) => {
+        if (!onBarSelect || !elements?.length) return;
+        const idx = elements[0].index;
+        if (typeof idx === "number" && idx >= 0) onBarSelect(idx);
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -342,10 +383,16 @@ function HorizontalBarChart({ labels, values, color }) {
         },
       },
     }),
-    [barGrid, isDark]
+    [barGrid, isDark, onBarSelect]
   );
 
-  return <Bar data={data} options={options} />;
+  return (
+    <Bar
+      data={data}
+      options={options}
+      style={onBarSelect ? { cursor: "pointer" } : undefined}
+    />
+  );
 }
 
 function issueTrendPillClass(direction) {
@@ -928,6 +975,25 @@ export default function App() {
       responsive: true,
       maintainAspectRatio: false,
       cutout: "62%",
+      onClick: (_evt, elements) => {
+        if (!elements?.length) return;
+        const idx = elements[0].index;
+        const pair = zonePairs[idx];
+        if (!pair) return;
+        const z = pair[0];
+        downloadCsv(
+          `zone-${String(z).replace(/\W+/g, "_")}.csv`,
+          stripExportRows(
+            filtered.filter(
+              (r) =>
+                canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                canonicalizeZoneLabel(String(z))
+            ),
+            exportFields
+          ),
+          exportFields
+        );
+      },
       plugins: {
         legend: {
           position: "bottom",
@@ -945,7 +1011,7 @@ export default function App() {
         },
       },
     }),
-    [isDark]
+    [isDark, zonePairs, filtered, colMapSafe.zone, exportFields]
   );
 
   const ingestParsed = useCallback((res, name) => {
@@ -1232,6 +1298,22 @@ export default function App() {
   const handleCameraFilteredDownload = useCallback((subset, filename) => {
     downloadCsv(filename, rowsToDetailExport(subset), CAMERA_DETAIL_FIELDS);
   }, []);
+
+  const handleCameraFullFileExport = useCallback(() => {
+    downloadCsv(
+      "camera-status-all-file.csv",
+      rowsToDetailExport(cameraStatusRows),
+      CAMERA_DETAIL_FIELDS
+    );
+  }, [cameraStatusRows]);
+
+  const exportFullDashboardRows = useCallback(() => {
+    downloadCsv(
+      "dashboard-all-rows.csv",
+      stripExportRows(annotated, exportFields),
+      exportFields
+    );
+  }, [annotated, exportFields]);
 
   const handleFile = useCallback(
     (file) => {
@@ -1607,25 +1689,34 @@ export default function App() {
               Reset
             </button>
             {activeTab === "data" && annotated.length > 0 ? (
-              <button
-                type="button"
-                onClick={() =>
-                  downloadCsv(
-                    "data-table-export.csv",
-                    stripExportRows(dataTableFiltered, exportFields),
-                    exportFields
-                  )
-                }
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep px-3 py-2 text-xs font-semibold text-white shadow-md shadow-sfx-deep/25 transition-all duration-200 hover:from-sfx-deep hover:to-sfx active:scale-[0.98] sm:min-h-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark"
-              >
-                <span>
-                  <span className="sm:hidden">CSV</span>
-                  <span className="hidden sm:inline">
-                    Export ({shortCount(dataTableFiltered.length)})
+              <span className="inline-flex min-h-[44px] items-stretch divide-x divide-white/25 overflow-hidden rounded-xl border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-xs font-semibold text-white shadow-md shadow-sfx-deep/25 transition-all duration-200 hover:brightness-110 active:scale-[0.98] sm:min-h-0 sm:text-sm dark:shadow-btn-dark">
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      "data-table-export.csv",
+                      stripExportRows(dataTableFiltered, exportFields),
+                      exportFields
+                    )
+                  }
+                  title="Export rows matching current table filters"
+                  className="px-2.5 py-2 sm:px-3.5"
+                >
+                  <span className="sm:hidden">#</span>
+                  <span className="hidden sm:inline tabular-nums">
+                    {shortCount(dataTableFiltered.length)}
                   </span>
-                </span>
-                <DownloadIcon className="h-4 w-4 shrink-0" />
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={exportFullDashboardRows}
+                  title="Download full dashboard (all rows)"
+                  aria-label="Download full dashboard CSV"
+                  className="inline-flex items-center justify-center px-2 py-2 sm:px-3"
+                >
+                  <DownloadIcon className="h-4 w-4 shrink-0" />
+                </button>
+              </span>
             ) : null}
             </div>
           </div>
@@ -1669,6 +1760,7 @@ export default function App() {
             setStatusFilter={setCamStatusFilter}
             onDownloadDetailed={handleCameraDetailDownload}
             onDownloadFiltered={handleCameraFilteredDownload}
+            onDownloadFullDataset={handleCameraFullFileExport}
           />
         ) : activeTab === "dashboard" ? (
           <>
@@ -1688,20 +1780,31 @@ export default function App() {
                   </span>
                   <div>
                     <p className="font-semibold text-red-900 dark:text-red-100">LM Fraud detected</p>
-                    <p className="text-sm text-red-800 dark:text-red-200/90">{counts.lm_fraud} cases in file</p>
+                    <p className="text-sm text-red-800 dark:text-red-200/90">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadCsv(
+                            "lm-fraud-rows.csv",
+                            stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
+                            exportFields
+                          )
+                        }
+                        className="font-semibold tabular-nums text-red-900 underline decoration-red-800/40 decoration-dotted underline-offset-2 hover:text-red-950 dark:text-red-100 dark:decoration-red-300/50 dark:hover:text-red-50"
+                        title="Download LM fraud rows only"
+                      >
+                        {counts.lm_fraud}
+                      </button>{" "}
+                      cases in file
+                    </p>
                   </div>
                 </div>
                 <DownloadBtn
-                  count={issueSlice(annotated, "all", "lm_fraud").length}
-                  label="Download LM fraud rows"
+                  count={annotated.length}
+                  label="Download full dashboard"
                   variant="red"
-                  onClick={() =>
-                    downloadCsv(
-                      "lm-fraud-rows.csv",
-                      stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
-                      exportFields
-                    )
-                  }
+                  onClickSlice={exportFullDashboardRows}
+                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <div className="flex flex-col gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-card dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
@@ -1712,24 +1815,33 @@ export default function App() {
                   <div>
                     <p className="font-semibold text-amber-950 dark:text-amber-100">High Partial Bagging</p>
                     <p className="text-sm text-amber-900 dark:text-amber-200/90">
-                      {counts.partial_bagging} cases in file
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadCsv(
+                            "partial-bagging-rows.csv",
+                            stripExportRows(
+                              issueSlice(annotated, "all", "partial_bagging"),
+                              exportFields
+                            ),
+                            exportFields
+                          )
+                        }
+                        className="font-semibold tabular-nums text-amber-950 underline decoration-amber-800/40 decoration-dotted underline-offset-2 hover:text-amber-900 dark:text-amber-100 dark:decoration-amber-300/50 dark:hover:text-amber-50"
+                        title="Download partial bagging rows only"
+                      >
+                        {counts.partial_bagging}
+                      </button>{" "}
+                      cases in file
                     </p>
                   </div>
                 </div>
                 <DownloadBtn
-                  count={issueSlice(annotated, "all", "partial_bagging").length}
-                  label="Download partial bagging rows"
+                  count={annotated.length}
+                  label="Download full dashboard"
                   variant="amber"
-                  onClick={() =>
-                    downloadCsv(
-                      "partial-bagging-rows.csv",
-                      stripExportRows(
-                        issueSlice(annotated, "all", "partial_bagging"),
-                        exportFields
-                      ),
-                      exportFields
-                    )
-                  }
+                  onClickSlice={exportFullDashboardRows}
+                  onClickFull={exportFullDashboardRows}
                 />
               </div>
             </div>
@@ -1747,25 +1859,36 @@ export default function App() {
                         : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setFilter(p.id)}
-                      className="min-w-0 py-1 text-left text-sm font-semibold text-slate-800 xs:text-center dark:text-slate-100 sm:text-center"
-                    >
-                      {p.label}{" "}
-                      <span className="font-normal text-slate-500 dark:text-slate-400">({shortCount(c)})</span>
-                    </button>
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1 py-1 text-sm font-semibold text-slate-800 xs:justify-center dark:text-slate-100 sm:justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setFilter(p.id)}
+                        className="min-w-0 text-left xs:text-center"
+                      >
+                        {p.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadCsv(
+                            `${p.id}-filter.csv`,
+                            stripExportRows(applyFilter(annotated, p.id), exportFields),
+                            exportFields
+                          )
+                        }
+                        className="font-normal tabular-nums text-sfx underline decoration-sfx/35 decoration-dotted underline-offset-2 hover:text-sfx-deep dark:text-sfx-cta dark:decoration-sfx-cta/50 dark:hover:text-sfx-cta"
+                        title={`Download ${p.label} rows only (${c.toLocaleString()})`}
+                      >
+                        ({shortCount(c)})
+                      </button>
+                    </div>
                     <DownloadBtn
-                      count={c}
+                      hideCount
+                      count={annotated.length}
                       variant="slate"
-                      label={`Download ${p.label}`}
-                      onClick={() =>
-                        downloadCsv(
-                          `${p.id}-filter.csv`,
-                          stripExportRows(applyFilter(annotated, p.id), exportFields),
-                          exportFields
-                        )
-                      }
+                      label="Download full dashboard (all rows)"
+                      onClickFull={exportFullDashboardRows}
+                      onClickSlice={exportFullDashboardRows}
                     />
                   </div>
                 );
@@ -1880,9 +2003,9 @@ export default function App() {
                 <div key={k.title} className="surface-card relative">
                   <button
                     type="button"
-                    onClick={k.dl}
+                    onClick={exportFullDashboardRows}
                     className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                    title="Download this segment"
+                    title="Download full dashboard (all rows)"
                   >
                     <DownloadIcon className="h-4 w-4" />
                   </button>
@@ -1890,11 +2013,14 @@ export default function App() {
                     <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
                     <div>
                       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
-                      <p
-                        className={`mt-1 text-2xl font-bold tabular-nums tracking-tight xs:text-3xl ${k.tone}`}
+                      <button
+                        type="button"
+                        onClick={k.dl}
+                        title={`Download ${k.title} rows only`}
+                        className={`mt-1 block w-full text-left text-2xl font-bold tabular-nums tracking-tight transition hover:opacity-90 xs:text-3xl ${k.tone}`}
                       >
                         {k.value.toLocaleString()}
-                      </p>
+                      </button>
                       <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
                     </div>
                   </div>
@@ -1933,8 +2059,8 @@ export default function App() {
                     <DownloadBtn
                       count={pocProductivityList.length}
                       variant="blue"
-                      label="Download POC productivity summary"
-                      onClick={() =>
+                      label="POC productivity"
+                      onClickSlice={() =>
                         downloadCsv(
                           "poc-productivity-summary.csv",
                           pocProductivityList.map((r) => ({
@@ -1949,6 +2075,7 @@ export default function App() {
                           ["poc", "total_eligible", "valid_rca", "productivity_pct"]
                         )
                       }
+                      onClickFull={exportFullDashboardRows}
                     />
                   ) : null}
                 </div>
@@ -2015,14 +2142,74 @@ export default function App() {
                               <td className="max-w-[12rem] truncate px-3 py-2 font-medium text-slate-900 dark:text-slate-100">
                                 {row.poc}
                               </td>
-                              <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                                {row.totalEligible.toLocaleString()}
+                              <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
+                                <button
+                                  type="button"
+                                  disabled={!colMapSafe.poc}
+                                  onClick={() => {
+                                    const col = colMapSafe.poc;
+                                    if (!col) return;
+                                    const subset = annotated.filter(
+                                      (r) =>
+                                        String(r[col] ?? "").trim() === String(row.poc).trim()
+                                    );
+                                    downloadCsv(
+                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      stripExportRows(subset, exportFields),
+                                      exportFields
+                                    );
+                                  }}
+                                  className="tabular-nums underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                                  title="Download all dashboard rows for this POC"
+                                >
+                                  {row.totalEligible.toLocaleString()}
+                                </button>
                               </td>
-                              <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                                {row.validRca.toLocaleString()}
+                              <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
+                                <button
+                                  type="button"
+                                  disabled={!colMapSafe.poc}
+                                  onClick={() => {
+                                    const col = colMapSafe.poc;
+                                    if (!col) return;
+                                    const subset = annotated.filter(
+                                      (r) =>
+                                        String(r[col] ?? "").trim() === String(row.poc).trim()
+                                    );
+                                    downloadCsv(
+                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      stripExportRows(subset, exportFields),
+                                      exportFields
+                                    );
+                                  }}
+                                  className="tabular-nums underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                                  title="Download all dashboard rows for this POC"
+                                >
+                                  {row.validRca.toLocaleString()}
+                                </button>
                               </td>
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                                {formatPocProductivityPercent(row.productivityRatio)}
+                                <button
+                                  type="button"
+                                  disabled={!colMapSafe.poc}
+                                  onClick={() => {
+                                    const col = colMapSafe.poc;
+                                    if (!col) return;
+                                    const subset = annotated.filter(
+                                      (r) =>
+                                        String(r[col] ?? "").trim() === String(row.poc).trim()
+                                    );
+                                    downloadCsv(
+                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      stripExportRows(subset, exportFields),
+                                      exportFields
+                                    );
+                                  }}
+                                  className="w-full text-right underline decoration-emerald-600/40 decoration-dotted underline-offset-2 hover:opacity-90 disabled:cursor-not-allowed disabled:no-underline dark:decoration-emerald-400/50"
+                                  title="Download all dashboard rows for this POC"
+                                >
+                                  {formatPocProductivityPercent(row.productivityRatio)}
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -2129,14 +2316,15 @@ export default function App() {
                   <DownloadBtn
                     count={weeklyPivotRows.length}
                     variant="blue"
-                    label="Download weekly pivot CSV"
-                    onClick={() =>
+                    label="Weekly trends"
+                    onClickSlice={() =>
                       downloadCsv(
                         "weekly-trends-partial-fraud-camera.csv",
                         weeklyPivotRows,
                         ["week_start", "partial_bagging", "lm_fraud", "camera_issues"]
                       )
                     }
+                    onClickFull={exportFullDashboardRows}
                   />
                 </div>
                 {weeklyParseableCount === 0 ? (
@@ -2186,9 +2374,11 @@ export default function App() {
                               <span>{m.icon}</span>
                               {m.title}
                             </h3>
-                            <button
-                              type="button"
-                              onClick={() =>
+                            <DownloadBtn
+                              count={m.series.reduce((s, x) => s + x.count, 0)}
+                              variant="slate"
+                              label={m.title}
+                              onClickSlice={() =>
                                 downloadCsv(
                                   m.file,
                                   m.series.map((s) => ({
@@ -2198,11 +2388,8 @@ export default function App() {
                                   ["week_start", m.col]
                                 )
                               }
-                              className="rounded-xl border border-slate-200/90 bg-white p-2 text-slate-500 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                              title="Download this series"
-                            >
-                              <DownloadIcon className="h-4 w-4" />
-                            </button>
+                              onClickFull={exportFullDashboardRows}
+                            />
                           </div>
                           <p
                             className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${issueTrendPillClass(
@@ -2213,7 +2400,39 @@ export default function App() {
                           </p>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
                             Latest week:{" "}
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{trend.last}</span>
+                            <button
+                              type="button"
+                              disabled={!colMapSafe.date}
+                              onClick={() => {
+                                const dk = weeklyByIssue.partial.length
+                                  ? weeklyByIssue.partial[weeklyByIssue.partial.length - 1]?.weekKey
+                                  : null;
+                                const wk =
+                                  m.series.length > 0 ? m.series[m.series.length - 1].weekKey : dk;
+                                if (!wk || !colMapSafe.date) return;
+                                const kind =
+                                  m.col === "partial_bagging_count"
+                                    ? "partial_bagging"
+                                    : m.col === "lm_fraud_count"
+                                      ? "lm_fraud"
+                                      : "camera_issues";
+                                const dc = colMapSafe.date;
+                                const subset = annotated.filter((r) => {
+                                  if (r.__kind !== kind) return false;
+                                  const d = parseFlexibleDate(r[dc]);
+                                  return d && weekKeyFromDate(d) === wk;
+                                });
+                                downloadCsv(
+                                  `weekly-${kind}-${wk}.csv`,
+                                  stripExportRows(subset, exportFields),
+                                  exportFields
+                                );
+                              }}
+                              className="font-semibold text-slate-700 underline decoration-slate-400/60 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:text-slate-300 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                              title="Download rows in latest week for this category"
+                            >
+                              {trend.last}
+                            </button>
                             {trend.prev != null ? (
                               <>
                                 {" "}
@@ -2247,13 +2466,20 @@ export default function App() {
                 <DownloadBtn
                   count={filtered.length}
                   variant="blue"
-                  label="Download zone summary"
-                  onClick={() => downloadAggregateCsv("zone-summary.csv", zonePairs)}
+                  label="Zone distribution"
+                  onClickSlice={() => downloadAggregateCsv("zone-summary.csv", zonePairs)}
+                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
                 <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
-                  {zonePairs.length ? <Doughnut data={donutData} options={donutOptions} /> : (
+                  {zonePairs.length ? (
+                    <Doughnut
+                      data={donutData}
+                      options={donutOptions}
+                      style={{ cursor: "pointer" }}
+                    />
+                  ) : (
                     <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
                       No data
                     </p>
@@ -2267,11 +2493,10 @@ export default function App() {
                     >
                       <span className="font-medium text-slate-800 dark:text-slate-200">{z}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-600 dark:text-slate-400">{shortCount(n)}</span>
                         <button
                           type="button"
-                          className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                          title={`Download rows for ${z}`}
+                          className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                          title={`Download rows for ${z} only`}
                           onClick={() =>
                             downloadCsv(
                               `zone-${String(z).replace(/\W+/g, "_")}.csv`,
@@ -2287,6 +2512,14 @@ export default function App() {
                               exportFields
                             )
                           }
+                        >
+                          {shortCount(n)}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                          title="Download full dashboard (all rows)"
+                          onClick={exportFullDashboardRows}
                         >
                           <DownloadIcon className="h-4 w-4" />
                         </button>
@@ -2305,8 +2538,9 @@ export default function App() {
                 <DownloadBtn
                   count={rcaPairs.reduce((s, [, v]) => s + v, 0)}
                   variant="blue"
-                  label="Download RCA summary"
-                  onClick={() => downloadAggregateCsv("rca-summary.csv", rcaPairs)}
+                  label="RCA categories"
+                  onClickSlice={() => downloadAggregateCsv("rca-summary.csv", rcaPairs)}
+                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <div className="h-56 min-h-[14rem] w-full min-w-0 sm:h-72 md:h-80">
@@ -2315,6 +2549,18 @@ export default function App() {
                     labels={rcaPairs.map(([l]) => l)}
                     values={rcaPairs.map(([, v]) => v)}
                     color="rgba(0, 138, 113, 0.9)"
+                    onBarSelect={(idx) => {
+                      const label = rcaPairs[idx]?.[0];
+                      if (label == null) return;
+                      downloadCsv(
+                        `rca-category-${String(label).replace(/\W+/g, "_").slice(0, 80)}.csv`,
+                        stripExportRows(
+                          rowsMatchingRcaAggregateKey(filtered, label),
+                          exportFields
+                        ),
+                        exportFields
+                      );
+                    }}
                   />
                 ) : (
                   <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
@@ -2332,8 +2578,9 @@ export default function App() {
                 <DownloadBtn
                   count={hotspotPairs.reduce((s, [, v]) => s + v, 0)}
                   variant="outline"
-                  label="Download hotspot list"
-                  onClick={() => downloadAggregateCsv("issue-hotspots.csv", hotspotPairs)}
+                  label="Issue hotspots"
+                  onClickSlice={() => downloadAggregateCsv("issue-hotspots.csv", hotspotPairs)}
+                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <ol className="space-y-2" aria-label="Issue hotspots by hub">
@@ -2355,10 +2602,10 @@ export default function App() {
                       <span className="font-medium text-slate-800 dark:text-slate-200">{hub}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="tabular-nums text-slate-600 dark:text-slate-400">{n}</span>
                       <button
                         type="button"
-                        className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                        className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                        title={`Download hotspot rows for ${hub}`}
                         onClick={() =>
                           downloadCsv(
                             `hub-${String(hub).replace(/\W+/g, "_")}-hotspot-rcas.csv`,
@@ -2373,6 +2620,14 @@ export default function App() {
                             exportFields
                           )
                         }
+                      >
+                        {n}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                        title="Download full dashboard (all rows)"
+                        onClick={exportFullDashboardRows}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -2414,7 +2669,21 @@ export default function App() {
                     exportFields
                   )
                 }
+                onBarSlice={(hub) => {
+                  if (!colMapSafe.hub) return;
+                  downloadCsv(
+                    `partial-bagging-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    stripExportRows(
+                      issueSlice(annotated, filter, "partial_bagging").filter(
+                        (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                      ),
+                      exportFields
+                    ),
+                    exportFields
+                  );
+                }}
                 rowCount={issueSlice(annotated, filter, "partial_bagging").length}
+                onDownloadFull={exportFullDashboardRows}
               />
               <ChartCard
                 title="LM Fraud by Hub"
@@ -2435,7 +2704,21 @@ export default function App() {
                     exportFields
                   )
                 }
+                onBarSlice={(hub) => {
+                  if (!colMapSafe.hub) return;
+                  downloadCsv(
+                    `lm-fraud-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    stripExportRows(
+                      issueSlice(annotated, filter, "lm_fraud").filter(
+                        (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                      ),
+                      exportFields
+                    ),
+                    exportFields
+                  );
+                }}
                 rowCount={issueSlice(annotated, filter, "lm_fraud").length}
+                onDownloadFull={exportFullDashboardRows}
               />
               <ChartCard
                 title="Camera Issues by Hub"
@@ -2456,7 +2739,21 @@ export default function App() {
                     exportFields
                   )
                 }
+                onBarSlice={(hub) => {
+                  if (!colMapSafe.hub) return;
+                  downloadCsv(
+                    `camera-issues-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    stripExportRows(
+                      issueSlice(annotated, filter, "camera_issues").filter(
+                        (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                      ),
+                      exportFields
+                    ),
+                    exportFields
+                  );
+                }}
                 rowCount={issueSlice(annotated, filter, "camera_issues").length}
+                onDownloadFull={exportFullDashboardRows}
               />
             </div>
 
@@ -2471,14 +2768,15 @@ export default function App() {
                   <DownloadBtn
                     count={recentIssuesSorted.length}
                     variant="dark"
-                    label="Download problematic issues (sorted)"
-                    onClick={() =>
+                    label="Recent problematic issues"
+                    onClickSlice={() =>
                       downloadCsv(
                         "recent-issues-problematic-sorted.csv",
                         stripExportRows(recentIssuesSorted, exportFields),
                         exportFields
                       )
                     }
+                    onClickFull={exportFullDashboardRows}
                   />
                 </div>
               </div>
@@ -2545,22 +2843,29 @@ export default function App() {
                             </span>
                           </td>
                           {colMapSafe.open ? (
-                            <td className="px-2 py-2 font-semibold tabular-nums text-red-600 sm:px-3 dark:text-red-400">
-                              {r[colMapSafe.open] ?? "—"}
+                            <td className="px-2 py-2 sm:px-3">
+                              <button
+                                type="button"
+                                className="w-full text-left font-semibold tabular-nums text-red-600 underline decoration-red-500/35 decoration-dotted underline-offset-2 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                title="Download this row"
+                                onClick={() =>
+                                  downloadCsv(
+                                    "issue-row.csv",
+                                    stripExportRows([r], exportFields),
+                                    exportFields
+                                  )
+                                }
+                              >
+                                {r[colMapSafe.open] ?? "—"}
+                              </button>
                             </td>
                           ) : null}
                           <td className="px-2 py-2 sm:px-3">
                             <button
                               type="button"
                               className="rounded-lg border border-slate-200/90 bg-white/90 p-1 text-slate-500 shadow-sm transition-all hover:bg-white sm:rounded-xl sm:p-1.5 dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                              title="Download this row"
-                              onClick={() =>
-                                downloadCsv(
-                                  "issue-row.csv",
-                                  stripExportRows([r], exportFields),
-                                  exportFields
-                                )
-                              }
+                              title="Download full dashboard (all rows)"
+                              onClick={exportFullDashboardRows}
                             >
                               <DownloadIcon className="h-4 w-4" />
                             </button>
@@ -2595,6 +2900,7 @@ export default function App() {
             rcaOptions={dataTableRcaOptions}
             categoryKinds={dataTableCategoryKinds}
             filteredRows={dataTableFiltered}
+            onExportFullDataset={exportFullDashboardRows}
           />
         ) : null}
       </main>
@@ -2611,6 +2917,8 @@ function ChartCard({
   onDownloadSummary,
   onDownloadRows,
   rowCount,
+  onBarSlice,
+  onDownloadFull,
 }) {
   const summaryTotal = pairs.reduce((s, [, v]) => s + v, 0);
   return (
@@ -2624,10 +2932,17 @@ function ChartCard({
           <DownloadBtn
             count={summaryTotal}
             variant="slate"
-            label="Summary CSV"
-            onClick={onDownloadSummary}
+            label="Hub summary"
+            onClickSlice={onDownloadSummary}
+            onClickFull={onDownloadFull}
           />
-          <DownloadBtn count={rowCount} variant={rowsVariant} label="Rows CSV" onClick={onDownloadRows} />
+          <DownloadBtn
+            count={rowCount}
+            variant={rowsVariant}
+            label="All rows for this issue type"
+            onClickSlice={onDownloadRows}
+            onClickFull={onDownloadFull}
+          />
         </div>
       </div>
       <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64 md:h-72">
@@ -2636,6 +2951,14 @@ function ChartCard({
             labels={pairs.map(([l]) => l)}
             values={pairs.map(([, v]) => v)}
             color={color}
+            onBarSelect={
+              onBarSlice
+                ? (idx) => {
+                    const hub = pairs[idx]?.[0];
+                    if (hub != null) onBarSlice(hub);
+                  }
+                : undefined
+            }
           />
         ) : (
           <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">

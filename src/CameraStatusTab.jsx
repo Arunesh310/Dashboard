@@ -58,28 +58,61 @@ function rcaPillClass(remark) {
   return "bg-violet-100 text-violet-900 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/35";
 }
 
-function DownloadBtn({ count, label, variant = "dark", onClick, disabled }) {
+function DownloadBtn({
+  count,
+  label,
+  variant = "dark",
+  onClickSlice,
+  onClickFull,
+  onClick,
+  disabled,
+  hideCount,
+}) {
+  const slice = onClickSlice ?? onClick;
+  const full = onClickFull ?? onClick ?? onClickSlice;
   const styles = {
     dark:
-      "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn hover:from-slate-600 hover:to-slate-800 hover:shadow-md dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark dark:hover:from-slate-500 dark:hover:to-slate-900",
+      "border border-slate-700/70 bg-gradient-to-b from-slate-700 to-slate-900 text-white shadow-btn dark:border-slate-600/40 dark:from-slate-600 dark:to-slate-950 dark:shadow-btn-dark",
     blue:
-      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25 hover:from-sfx-deep hover:to-sfx",
+      "border border-sfx/30 bg-gradient-to-b from-sfx to-sfx-deep text-white shadow-md shadow-sfx-deep/25",
     slate:
-      "border border-slate-200/90 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700/80",
+      "border border-slate-200/90 bg-white text-slate-800 shadow-sm dark:border-slate-600/60 dark:bg-slate-800/80 dark:text-slate-100",
     outline:
-      "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800/80",
+      "border border-slate-200/90 bg-white/95 text-slate-700 shadow-sm dark:border-slate-600/70 dark:bg-slate-900/60 dark:text-slate-200",
   };
+  const divide =
+    variant === "slate" || variant === "outline"
+      ? "divide-slate-200/90 dark:divide-slate-600/80"
+      : "divide-white/20";
+  const hit =
+    "transition-all duration-200 hover:brightness-110 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40";
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
+    <span
+      className={`inline-flex items-stretch overflow-hidden rounded-xl ${styles[variant]} ${hit} divide-x ${divide}`}
       title={label}
-      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${styles[variant]}`}
     >
-      <span>{shortCount(count)}</span>
-      <DownloadIcon className="h-4 w-4 opacity-90" />
-    </button>
+      {hideCount ? null : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={slice}
+          title={`${label} — filtered slice`}
+          className="px-2.5 py-1.5 text-sm font-semibold"
+        >
+          {shortCount(count)}
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={full}
+        title={`${label} — full camera file`}
+        aria-label={`${label} — full camera file`}
+        className={`inline-flex items-center justify-center px-2 py-1.5 ${hideCount ? "px-3" : ""}`}
+      >
+        <DownloadIcon className="h-4 w-4 opacity-90" />
+      </button>
+    </span>
   );
 }
 
@@ -179,6 +212,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     setStatusFilter,
     onDownloadDetailed,
     onDownloadFiltered,
+    onDownloadFullDataset,
   },
   ref
 ) {
@@ -279,14 +313,22 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   const zoneBarLabels = useMemo(() => zoneAgg.map((z) => z.zone), [zoneAgg]);
   const zoneBarValues = useMemo(() => zoneAgg.map((z) => z.offlinePct), [zoneAgg]);
 
-  const downloadZoneRow = (zone) => {
-    const subset = filtered.filter((r) => (r.zone || "—") === zone);
-    onDownloadFiltered(subset, `camera-status-zone-${String(zone).replace(/\W+/g, "_")}.csv`);
+  const downloadZoneRow = (zone, mode = "all") => {
+    let subset = filtered.filter((r) => (r.zone || "—") === zone);
+    if (mode === "online") subset = subset.filter((r) => r.isOnline);
+    if (mode === "offline") subset = subset.filter((r) => r.isOffline);
+    const slug = String(zone).replace(/\W+/g, "_");
+    const tag = mode === "all" ? "all" : mode;
+    onDownloadFiltered(subset, `camera-status-zone-${slug}-${tag}.csv`);
   };
 
-  const downloadPodRow = (pod) => {
-    const subset = filtered.filter((r) => (r.pod || "—") === pod);
-    onDownloadFiltered(subset, `camera-status-pod-${String(pod).replace(/\W+/g, "_")}.csv`);
+  const downloadPodRow = (pod, mode = "all") => {
+    let subset = filtered.filter((r) => (r.pod || "—") === pod);
+    if (mode === "online") subset = subset.filter((r) => r.isOnline);
+    if (mode === "offline") subset = subset.filter((r) => r.isOffline);
+    const slug = String(pod).replace(/\W+/g, "_");
+    const tag = mode === "all" ? "all" : mode;
+    onDownloadFiltered(subset, `camera-status-pod-${slug}-${tag}.csv`);
   };
 
   const downloadRcaOfflineRow = (remark) => {
@@ -502,16 +544,22 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           },
         ].map((k) => (
           <div key={k.title} className="surface-card relative">
-            <KpiDownload title={k.dlTitle} onClick={k.onDl} />
+            <KpiDownload
+              title="Download full camera file (all loaded rows)"
+              onClick={() => onDownloadFullDataset?.()}
+            />
             <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
               <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
               <div>
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
-                <p
-                  className={`mt-1 text-2xl font-bold tabular-nums tracking-tight xs:text-3xl ${k.tone}`}
+                <button
+                  type="button"
+                  onClick={k.onDl}
+                  title={k.dlTitle}
+                  className={`mt-1 block w-full text-left text-2xl font-bold tabular-nums tracking-tight transition hover:opacity-90 xs:text-3xl ${k.tone}`}
                 >
                   {typeof k.value === "number" ? k.value.toLocaleString() : k.value}
-                </p>
+                </button>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
               </div>
             </div>
@@ -528,8 +576,9 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <DownloadBtn
               count={(kpis.neither ?? 0) > 0 ? 3 : 2}
               variant="outline"
-              label="Download chart data (Online / Offline)"
-              onClick={exportStatusMix}
+              label="Connectivity mix"
+              onClickSlice={exportStatusMix}
+              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
           <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
@@ -550,8 +599,9 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <DownloadBtn
               count={zoneAgg.length}
               variant="outline"
-              label="Download zone offline % data"
-              onClick={exportZoneChartData}
+              label="Zone offline %"
+              onClickSlice={exportZoneChartData}
+              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
           <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64">
@@ -574,8 +624,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           <DownloadBtn
             count={zoneAgg.length}
             variant="blue"
-            label="Download zone summary CSV"
-            onClick={() =>
+            label="Zone summary"
+            onClickSlice={() =>
               downloadCsv(
                 "camera-status-zone-summary.csv",
                 zoneAgg.map((z) => ({
@@ -588,6 +638,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                 ["Zone", "Total_Cameras", "Online", "Offline", "Offline_pct"]
               )
             }
+            onClickFull={() => onDownloadFullDataset?.()}
           />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
@@ -607,9 +658,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                 {zoneAgg.map((z) => (
                   <tr
                     key={z.zone}
-                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
-                    onClick={() => downloadZoneRow(z.zone)}
-                    title="Download zone cameras"
+                    className="border-b border-slate-100 dark:border-slate-800/80"
                   >
                     <td className="px-3 py-2">
                       <span
@@ -620,14 +669,35 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                         {z.zone}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                      {z.total.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
+                      <button
+                        type="button"
+                        onClick={() => downloadZoneRow(z.zone, "all")}
+                        className="tabular-nums underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                        title="All cameras in this zone"
+                      >
+                        {z.total.toLocaleString()}
+                      </button>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">
-                      {z.online.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-emerald-700 dark:text-emerald-400">
+                      <button
+                        type="button"
+                        onClick={() => downloadZoneRow(z.zone, "online")}
+                        className="tabular-nums underline decoration-emerald-600/40 decoration-dotted underline-offset-2 hover:opacity-90 dark:decoration-emerald-400/50"
+                        title="Download online cameras in this zone"
+                      >
+                        {z.online.toLocaleString()}
+                      </button>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-600 dark:text-red-400">
-                      {z.offline.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">
+                      <button
+                        type="button"
+                        onClick={() => downloadZoneRow(z.zone, "offline")}
+                        className="tabular-nums underline decoration-red-500/40 decoration-dotted underline-offset-2 hover:opacity-90 dark:decoration-red-400/50"
+                        title="Download offline cameras in this zone"
+                      >
+                        {z.offline.toLocaleString()}
+                      </button>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums text-orange-700 dark:text-orange-400">
                       {z.offlinePct.toFixed(1)}%
@@ -636,11 +706,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                        title="Download rows for this zone"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadZoneRow(z.zone);
-                        }}
+                        title="Download full camera file"
+                        onClick={() => onDownloadFullDataset?.()}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -661,8 +728,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           <DownloadBtn
             count={podAgg.length}
             variant="slate"
-            label="Download POD summary CSV"
-            onClick={() =>
+            label="POD summary"
+            onClickSlice={() =>
               downloadCsv(
                 "camera-status-pod-summary.csv",
                 podAgg.map((p) => ({
@@ -675,6 +742,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                 ["POD", "Total_Cameras", "Online", "Offline", "Offline_pct"]
               )
             }
+            onClickFull={() => onDownloadFullDataset?.()}
           />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
@@ -692,23 +760,39 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               </thead>
               <tbody>
                 {podAgg.map((p) => (
-                  <tr
-                    key={p.pod}
-                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
-                    onClick={() => downloadPodRow(p.pod)}
-                    title="Download POD cameras"
-                  >
+                  <tr key={p.pod} className="border-b border-slate-100 dark:border-slate-800/80">
                     <td className="max-w-[14rem] truncate px-3 py-2 font-medium text-slate-900 dark:text-slate-100">
                       {p.pod}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                      {p.total.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
+                      <button
+                        type="button"
+                        onClick={() => downloadPodRow(p.pod, "all")}
+                        className="tabular-nums underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                        title="All cameras in this POD"
+                      >
+                        {p.total.toLocaleString()}
+                      </button>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">
-                      {p.online.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-emerald-700 dark:text-emerald-400">
+                      <button
+                        type="button"
+                        onClick={() => downloadPodRow(p.pod, "online")}
+                        className="tabular-nums underline decoration-emerald-600/40 decoration-dotted underline-offset-2 hover:opacity-90 dark:decoration-emerald-400/50"
+                        title="Online cameras in this POD"
+                      >
+                        {p.online.toLocaleString()}
+                      </button>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-600 dark:text-red-400">
-                      {p.offline.toLocaleString()}
+                    <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">
+                      <button
+                        type="button"
+                        onClick={() => downloadPodRow(p.pod, "offline")}
+                        className="tabular-nums underline decoration-red-500/40 decoration-dotted underline-offset-2 hover:opacity-90 dark:decoration-red-400/50"
+                        title="Offline cameras in this POD"
+                      >
+                        {p.offline.toLocaleString()}
+                      </button>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums text-orange-700 dark:text-orange-400">
                       {p.pct.toFixed(1)}%
@@ -717,11 +801,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                        title="Download rows for this POD"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadPodRow(p.pod);
-                        }}
+                        title="Download full camera file"
+                        onClick={() => onDownloadFullDataset?.()}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -743,14 +824,16 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <DownloadBtn
               count={rcaOfflineEnriched.length}
               variant="slate"
-              label="Download RCA offline table (full metrics)"
-              onClick={exportRcaOfflineDetailed}
+              label="RCA offline table"
+              onClickSlice={exportRcaOfflineDetailed}
+              onClickFull={() => onDownloadFullDataset?.()}
             />
             <DownloadBtn
               count={rcaAllView.length}
               variant="outline"
-              label="RCA across all cameras in view"
-              onClick={exportRcaAllCameras}
+              label="RCA — all cameras in view"
+              onClickSlice={exportRcaAllCameras}
+              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
         </div>
@@ -774,9 +857,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                   {rcaOfflineEnriched.map((x) => (
                     <tr
                       key={x.remark}
-                      className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50/90 dark:border-slate-800/80 dark:hover:bg-slate-800/40"
-                      onClick={() => downloadRcaOfflineRow(x.remark)}
-                      title="Download RCA cameras (offline)"
+                      className="border-b border-slate-100 dark:border-slate-800/80"
                     >
                       <td className="max-w-[min(100vw,14rem)] px-3 py-2.5 sm:max-w-md">
                         <span
@@ -788,8 +869,15 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                           <span className="truncate">{x.remark}</span>
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-                        {x.count.toLocaleString()}
+                      <td className="px-3 py-2.5 text-right font-semibold text-slate-900 dark:text-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => downloadRcaOfflineRow(x.remark)}
+                          className="tabular-nums underline decoration-slate-500/45 decoration-dotted underline-offset-2 hover:text-sfx dark:decoration-slate-400 dark:hover:text-sfx-cta"
+                          title="Offline cameras with this RCA"
+                        >
+                          {x.count.toLocaleString()}
+                        </button>
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">
                         {x.pctOfOffline.toFixed(1)}%
@@ -810,11 +898,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                         <button
                           type="button"
                           className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                          title="Download offline cameras with this RCA"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadRcaOfflineRow(x.remark);
-                          }}
+                          title="Download full camera file"
+                          onClick={() => onDownloadFullDataset?.()}
                         >
                           <DownloadIcon className="h-4 w-4" />
                         </button>

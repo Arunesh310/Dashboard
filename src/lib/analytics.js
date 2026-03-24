@@ -152,15 +152,24 @@ export function aggregateByField(rows, fieldKey, limit = 12, opts = {}) {
     .slice(0, limit);
 }
 
+/** Bucket label used by {@link aggregateRca} (shortened RCA text). */
+export function rcaAggregateKeyForRow(r) {
+  const label =
+    r.__rcaText && String(r.__rcaText).trim() !== ""
+      ? String(r.__rcaText).trim()
+      : "Unknown";
+  return label.length > 42 ? `${label.slice(0, 40)}…` : label;
+}
+
+/** Rows whose RCA aggregates to the same key as in RCA category charts. */
+export function rowsMatchingRcaAggregateKey(rows, key) {
+  return rows.filter((r) => rcaAggregateKeyForRow(r) === key);
+}
+
 export function aggregateRca(rows, limit = 10) {
   const counts = new Map();
   for (const r of rows) {
-    const label =
-      r.__rcaText && r.__rcaText.trim() !== ""
-        ? r.__rcaText.trim()
-        : "Unknown";
-    const short =
-      label.length > 42 ? `${label.slice(0, 40)}…` : label;
+    const short = rcaAggregateKeyForRow(r);
     counts.set(short, (counts.get(short) ?? 0) + 1);
   }
   return [...counts.entries()]

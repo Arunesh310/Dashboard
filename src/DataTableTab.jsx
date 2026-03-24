@@ -108,7 +108,7 @@ export function DataTableTab({
   rcaOptions,
   categoryKinds,
   filteredRows,
-  onExportFiltered,
+  onExportFullDataset,
 }) {
   const pageRows = useMemo(() => {
     const start = page * DATA_TABLE_PAGE_SIZE;
@@ -291,8 +291,18 @@ export function DataTableTab({
                       </span>
                     </td>
                     {colMapSafe.open ? (
-                      <td className="px-2 py-2 sm:px-4 sm:py-2.5 font-semibold tabular-nums text-red-600 dark:text-red-400">
-                        {r[colMapSafe.open] ?? "—"}
+                      <td className="px-2 py-2 sm:px-4 sm:py-2.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            exportRow(r);
+                          }}
+                          className="w-full text-left font-semibold tabular-nums text-red-600 underline decoration-red-500/35 decoration-dotted underline-offset-2 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          title="Download this row"
+                        >
+                          {r[colMapSafe.open] ?? "—"}
+                        </button>
                       </td>
                     ) : null}
                     {colMapSafe.cctv ? (
@@ -308,11 +318,11 @@ export function DataTableTab({
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-slate-600/70 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                        title="Download row"
-                        aria-label="Download row CSV"
+                        title="Download full dashboard (all rows)"
+                        aria-label="Download full dashboard CSV"
                         onClick={(e) => {
                           e.stopPropagation();
-                          exportRow(r);
+                          onExportFullDataset?.();
                         }}
                       >
                         <DownloadIcon className="h-4 w-4" />
