@@ -1301,14 +1301,6 @@ export default function App() {
     downloadCsv(filename, rowsToDetailExport(subset), CAMERA_DETAIL_FIELDS);
   }, []);
 
-  const handleCameraFullFileExport = useCallback(() => {
-    downloadCsv(
-      "camera-status-all-file.csv",
-      rowsToDetailExport(cameraStatusRows),
-      CAMERA_DETAIL_FIELDS
-    );
-  }, [cameraStatusRows]);
-
   const exportFullDashboardRows = useCallback(() => {
     downloadCsv(
       "dashboard-all-rows.csv",
@@ -1760,7 +1752,6 @@ export default function App() {
             setStatusFilter={setCamStatusFilter}
             onDownloadDetailed={handleCameraDetailDownload}
             onDownloadFiltered={handleCameraFilteredDownload}
-            onDownloadFullDataset={handleCameraFullFileExport}
           />
         ) : activeTab === "dashboard" ? (
           <>
@@ -1800,11 +1791,16 @@ export default function App() {
                   </div>
                 </div>
                 <DownloadBtn
-                  count={annotated.length}
-                  label="Download full dashboard"
+                  count={issueSlice(annotated, "all", "lm_fraud").length}
+                  label="Download LM fraud rows"
                   variant="red"
-                  onClickSlice={exportFullDashboardRows}
-                  onClickFull={exportFullDashboardRows}
+                  onClickSlice={() =>
+                    downloadCsv(
+                      "lm-fraud-rows.csv",
+                      stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
+                      exportFields
+                    )
+                  }
                 />
               </div>
               <div className="flex flex-col gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-card dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
@@ -1837,11 +1833,16 @@ export default function App() {
                   </div>
                 </div>
                 <DownloadBtn
-                  count={annotated.length}
-                  label="Download full dashboard"
+                  count={issueSlice(annotated, "all", "partial_bagging").length}
+                  label="Download partial bagging rows"
                   variant="amber"
-                  onClickSlice={exportFullDashboardRows}
-                  onClickFull={exportFullDashboardRows}
+                  onClickSlice={() =>
+                    downloadCsv(
+                      "partial-bagging-rows.csv",
+                      stripExportRows(issueSlice(annotated, "all", "partial_bagging"), exportFields),
+                      exportFields
+                    )
+                  }
                 />
               </div>
             </div>
@@ -1884,11 +1885,16 @@ export default function App() {
                     </div>
                     <DownloadBtn
                       hideCount
-                      count={annotated.length}
+                      count={c}
                       variant="slate"
-                      label="Download full dashboard (all rows)"
-                      onClickFull={exportFullDashboardRows}
-                      onClickSlice={exportFullDashboardRows}
+                      label={`Download ${p.label} rows`}
+                      onClickSlice={() =>
+                        downloadCsv(
+                          `${p.id}-filter.csv`,
+                          stripExportRows(applyFilter(annotated, p.id), exportFields),
+                          exportFields
+                        )
+                      }
                     />
                   </div>
                 );
@@ -2003,9 +2009,9 @@ export default function App() {
                 <div key={k.title} className="surface-card relative">
                   <button
                     type="button"
-                    onClick={exportFullDashboardRows}
+                    onClick={k.dl}
                     className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                    title="Download full dashboard (all rows)"
+                    title={`Download ${k.title} rows`}
                   >
                     <DownloadIcon className="h-4 w-4" />
                   </button>
@@ -2075,7 +2081,6 @@ export default function App() {
                           ["poc", "total_eligible", "valid_rca", "productivity_pct"]
                         )
                       }
-                      onClickFull={exportFullDashboardRows}
                     />
                   ) : null}
                 </div>
@@ -2324,7 +2329,6 @@ export default function App() {
                         ["week_start", "partial_bagging", "lm_fraud", "camera_issues"]
                       )
                     }
-                    onClickFull={exportFullDashboardRows}
                   />
                 </div>
                 {weeklyParseableCount === 0 ? (
@@ -2388,7 +2392,6 @@ export default function App() {
                                   ["week_start", m.col]
                                 )
                               }
-                              onClickFull={exportFullDashboardRows}
                             />
                           </div>
                           <p
@@ -2468,7 +2471,6 @@ export default function App() {
                   variant="blue"
                   label="Zone distribution"
                   onClickSlice={() => downloadAggregateCsv("zone-summary.csv", zonePairs)}
-                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
@@ -2518,8 +2520,21 @@ export default function App() {
                         <button
                           type="button"
                           className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                          title="Download full dashboard (all rows)"
-                          onClick={exportFullDashboardRows}
+                          title={`Download rows for ${z}`}
+                          onClick={() =>
+                            downloadCsv(
+                              `zone-${String(z).replace(/\W+/g, "_")}.csv`,
+                              stripExportRows(
+                                filtered.filter(
+                                  (r) =>
+                                    canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                                    canonicalizeZoneLabel(String(z))
+                                ),
+                                exportFields
+                              ),
+                              exportFields
+                            )
+                          }
                         >
                           <DownloadIcon className="h-4 w-4" />
                         </button>
@@ -2540,7 +2555,6 @@ export default function App() {
                   variant="blue"
                   label="RCA categories"
                   onClickSlice={() => downloadAggregateCsv("rca-summary.csv", rcaPairs)}
-                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <div className="h-56 min-h-[14rem] w-full min-w-0 sm:h-72 md:h-80">
@@ -2580,7 +2594,6 @@ export default function App() {
                   variant="outline"
                   label="Issue hotspots"
                   onClickSlice={() => downloadAggregateCsv("issue-hotspots.csv", hotspotPairs)}
-                  onClickFull={exportFullDashboardRows}
                 />
               </div>
               <ol className="space-y-2" aria-label="Issue hotspots by hub">
@@ -2626,8 +2639,19 @@ export default function App() {
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                        title="Download full dashboard (all rows)"
-                        onClick={exportFullDashboardRows}
+                        title={`Download hotspot rows for ${hub}`}
+                        onClick={() =>
+                          downloadCsv(
+                            `hub-${String(hub).replace(/\W+/g, "_")}-hotspot-rcas.csv`,
+                            stripExportRows(
+                              hotspotRows.filter(
+                                (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                              ),
+                              exportFields
+                            ),
+                            exportFields
+                          )
+                        }
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -2683,7 +2707,6 @@ export default function App() {
                   );
                 }}
                 rowCount={issueSlice(annotated, filter, "partial_bagging").length}
-                onDownloadFull={exportFullDashboardRows}
               />
               <ChartCard
                 title="LM Fraud by Hub"
@@ -2718,7 +2741,6 @@ export default function App() {
                   );
                 }}
                 rowCount={issueSlice(annotated, filter, "lm_fraud").length}
-                onDownloadFull={exportFullDashboardRows}
               />
               <ChartCard
                 title="Camera Issues by Hub"
@@ -2753,7 +2775,6 @@ export default function App() {
                   );
                 }}
                 rowCount={issueSlice(annotated, filter, "camera_issues").length}
-                onDownloadFull={exportFullDashboardRows}
               />
             </div>
 
@@ -2776,7 +2797,6 @@ export default function App() {
                         exportFields
                       )
                     }
-                    onClickFull={exportFullDashboardRows}
                   />
                 </div>
               </div>
@@ -2864,8 +2884,14 @@ export default function App() {
                             <button
                               type="button"
                               className="rounded-lg border border-slate-200/90 bg-white/90 p-1 text-slate-500 shadow-sm transition-all hover:bg-white sm:rounded-xl sm:p-1.5 dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                              title="Download full dashboard (all rows)"
-                              onClick={exportFullDashboardRows}
+                              title="Download this row"
+                              onClick={() =>
+                                downloadCsv(
+                                  "issue-row.csv",
+                                  stripExportRows([r], exportFields),
+                                  exportFields
+                                )
+                              }
                             >
                               <DownloadIcon className="h-4 w-4" />
                             </button>
@@ -2918,7 +2944,6 @@ function ChartCard({
   onDownloadRows,
   rowCount,
   onBarSlice,
-  onDownloadFull,
 }) {
   const summaryTotal = pairs.reduce((s, [, v]) => s + v, 0);
   return (
@@ -2934,14 +2959,12 @@ function ChartCard({
             variant="slate"
             label="Hub summary"
             onClickSlice={onDownloadSummary}
-            onClickFull={onDownloadFull}
           />
           <DownloadBtn
             count={rowCount}
             variant={rowsVariant}
             label="All rows for this issue type"
             onClickSlice={onDownloadRows}
-            onClickFull={onDownloadFull}
           />
         </div>
       </div>

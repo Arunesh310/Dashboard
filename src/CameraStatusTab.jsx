@@ -212,7 +212,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     setStatusFilter,
     onDownloadDetailed,
     onDownloadFiltered,
-    onDownloadFullDataset,
   },
   ref
 ) {
@@ -544,10 +543,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           },
         ].map((k) => (
           <div key={k.title} className="surface-card relative">
-            <KpiDownload
-              title="Download full camera file (all loaded rows)"
-              onClick={() => onDownloadFullDataset?.()}
-            />
+            <KpiDownload title={k.dlTitle} onClick={k.onDl} />
             <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
               <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
               <div>
@@ -578,7 +574,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               variant="outline"
               label="Connectivity mix"
               onClickSlice={exportStatusMix}
-              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
           <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
@@ -601,7 +596,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               variant="outline"
               label="Zone offline %"
               onClickSlice={exportZoneChartData}
-              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
           <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64">
@@ -638,7 +632,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                 ["Zone", "Total_Cameras", "Online", "Offline", "Offline_pct"]
               )
             }
-            onClickFull={() => onDownloadFullDataset?.()}
           />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
@@ -706,8 +699,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                        title="Download full camera file"
-                        onClick={() => onDownloadFullDataset?.()}
+                        title="All cameras in this zone"
+                        onClick={() => downloadZoneRow(z.zone, "all")}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -742,7 +735,6 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                 ["POD", "Total_Cameras", "Online", "Offline", "Offline_pct"]
               )
             }
-            onClickFull={() => onDownloadFullDataset?.()}
           />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-700/60">
@@ -801,8 +793,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                       <button
                         type="button"
                         className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                        title="Download full camera file"
-                        onClick={() => onDownloadFullDataset?.()}
+                        title="All cameras in this POD"
+                        onClick={() => downloadPodRow(p.pod, "all")}
                       >
                         <DownloadIcon className="h-4 w-4" />
                       </button>
@@ -826,14 +818,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               variant="slate"
               label="RCA offline table"
               onClickSlice={exportRcaOfflineDetailed}
-              onClickFull={() => onDownloadFullDataset?.()}
             />
             <DownloadBtn
               count={rcaAllView.length}
               variant="outline"
               label="RCA — all cameras in view"
               onClickSlice={exportRcaAllCameras}
-              onClickFull={() => onDownloadFullDataset?.()}
             />
           </div>
         </div>
@@ -898,8 +888,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
                         <button
                           type="button"
                           className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                          title="Download full camera file"
-                          onClick={() => onDownloadFullDataset?.()}
+                          title="Offline cameras with this RCA"
+                          onClick={() => downloadRcaOfflineRow(x.remark)}
                         >
                           <DownloadIcon className="h-4 w-4" />
                         </button>
