@@ -1310,10 +1310,10 @@ export default function App() {
   const exportFullDashboardRows = useCallback(() => {
     downloadCsv(
       "dashboard-all-rows.csv",
-      stripExportRows(annotated, exportFields),
-      exportFields
+      stripExportRows(annotated, fields),
+      fields
     );
-  }, [annotated, exportFields]);
+  }, [annotated, fields]);
 
   const handleFile = useCallback(
     (file) => {
