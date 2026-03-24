@@ -101,30 +101,6 @@ function UploadIcon({ className = "h-5 w-5" }) {
   );
 }
 
-function CameraIcon({ className = "h-5 w-5" }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-      />
-    </svg>
-  );
-}
-
 function PdfIcon({ className = "h-4 w-4" }) {
   return (
     <svg
@@ -1314,13 +1290,6 @@ export default function App() {
               role="tablist"
               aria-label="Main views"
             >
-              <div
-                className="flex shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/15 to-sky-500/10 px-2.5 text-blue-600 dark:from-blue-500/25 dark:to-sky-500/15 dark:text-sky-300"
-                aria-hidden
-                title="CCTV"
-              >
-                <CameraIcon className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" />
-              </div>
               <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
                 <button
                   type="button"
@@ -1353,12 +1322,19 @@ export default function App() {
                   role="tab"
                   aria-selected={activeTab === "camera"}
                   onClick={() => setActiveTab("camera")}
-                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "camera"
                       ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200/80 dark:bg-gradient-to-b dark:from-blue-600 dark:to-blue-700 dark:text-white dark:shadow-btn-dark dark:ring-blue-500/30"
                       : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                   }`}
                 >
+                  <span
+                    className="relative flex h-2 w-2 shrink-0 items-center justify-center"
+                    aria-hidden
+                  >
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500/40 motion-safe:animate-ping dark:bg-emerald-400/35" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.55)] dark:bg-emerald-400 dark:shadow-[0_0_6px_rgba(52,211,153,0.45)]" />
+                  </span>
                   Camera Status
                 </button>
               </div>
