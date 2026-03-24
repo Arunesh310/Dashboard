@@ -165,9 +165,11 @@ export function ShadowfaxAuthGate({ children }) {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-sfx-soft/80 px-4 dark:bg-slate-950">
-        <div className="surface-card w-full max-w-md border-sfx/20">
+        <div className="surface-card w-full max-w-md border-sfx/20 text-center">
           <h1 className="text-lg font-bold text-sfx-ink dark:text-slate-100">Shadowfax sign in</h1>
-          <p className="mt-1.5 text-sm text-sfx-muted dark:text-slate-400">for shadowfax employees only</p>
+          <p className="mt-1.5 text-sm text-sfx-muted dark:text-slate-400">
+            for shadowfax employees only
+          </p>
           <button
             type="button"
             disabled={googleBusy}
