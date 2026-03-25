@@ -69,16 +69,45 @@ export function annotateRows(rows, colMap, fields) {
   });
 }
 
+/** Forward: RCA explicitly flags missing short count (theft / process risk). */
+export function isFwdNoShortRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  return t.includes("no short");
+}
+
+/**
+ * Forward: short found / validated (excludes "no short" lines so buckets don't double-count).
+ */
+export function isFwdShortFoundRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  if (!t.trim() || t.includes("no short")) return false;
+  return t.includes("short found") || t.includes("short validated");
+}
+
 /**
  * Forward movement: RCA patterns that suggest hub has freight but scanning/short-count behaviour is off.
- * (Theft-risk / process flags — tune strings to match your exports.)
+ * @deprecated Prefer {@link isFwdShortFoundRemark} / {@link isFwdNoShortRemark} for KPIs.
  */
 export function isFwdScanningTheftRca(text) {
-  const t = String(text ?? "").toLowerCase();
-  if (!t.trim()) return false;
-  if (t.includes("short found") || t.includes("short validated")) return true;
-  if (t.includes("no short")) return true;
-  return false;
+  return isFwdShortFoundRemark(text) || isFwdNoShortRemark(text);
+}
+
+/** @param {ReturnType<typeof annotateRows>[number]} r */
+export function isFwdNoShortRow(r) {
+  if (r.__movement !== "fwd" || r.__pending) return false;
+  return isFwdNoShortRemark(r.__rcaText ?? "");
+}
+
+/** @param {ReturnType<typeof annotateRows>[number]} r */
+export function isFwdShortFoundRow(r) {
+  if (r.__movement !== "fwd" || r.__pending) return false;
+  if (r.__kind === "camera_issues") return false;
+  return isFwdShortFoundRemark(r.__rcaText ?? "");
+}
+
+/** @param {ReturnType<typeof annotateRows>[number]} r */
+export function isFwdCameraRow(r) {
+  return r.__movement === "fwd" && !r.__pending && r.__kind === "camera_issues";
 }
 
 /** @param {ReturnType<typeof annotateRows>[number]} r */
@@ -355,6 +384,33 @@ export function buildWeeklySeriesForKind(rows, dateCol, kind, weekKeysFilled) {
 }
 
 /**
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {string | null} dateCol
+ * @param {(r: ReturnType<typeof annotateRows>[number]) => boolean} predicate
+ * @param {string[] | undefined} weekKeysFilled
+ */
+export function buildWeeklySeriesForPredicate(rows, dateCol, predicate, weekKeysFilled) {
+  if (!dateCol) return [];
+  const map = new Map();
+  for (const r of rows) {
+    if (!predicate(r)) continue;
+    const dt = parseFlexibleDate(r[dateCol]);
+    if (!dt) continue;
+    const key = weekKeyFromDate(dt);
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  const keys =
+    weekKeysFilled != null && weekKeysFilled.length
+      ? weekKeysFilled
+      : [...map.keys()].sort((a, b) => a.localeCompare(b));
+  return keys.map((weekKey) => ({
+    weekKey,
+    label: shortWeekLabel(weekKey),
+    count: map.get(weekKey) ?? 0,
+  }));
+}
+
+/**
  * @param {{ weekKey: string; label: string; count: number }[]} series
  */
 export function compareLatestWeeks(series) {
@@ -544,5 +600,62 @@ export function buildWeeklyPivotRows(rows, dateCol) {
       row[k] = hit ? hit.count : 0;
     }
     return row;
+  });
+}
+
+/** Weekly pivot for forward rows: short found, no short, camera. */
+export function buildWeeklyPivotRowsFwd(rows, dateCol) {
+  if (!dateCol) return [];
+  const fwd = rows.filter((r) => r.__movement === "fwd");
+  const weekKeys = getFilledWeekKeysBetweenMinMax(fwd.length ? fwd : rows, dateCol);
+  if (!weekKeys.length) return [];
+  const shortS = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdShortFoundRow, weekKeys);
+  const noShortS = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdNoShortRow, weekKeys);
+  const camS = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdCameraRow, weekKeys);
+  return weekKeys.map((wk) => {
+    const a = shortS.find((x) => x.weekKey === wk);
+    const b = noShortS.find((x) => x.weekKey === wk);
+    const c = camS.find((x) => x.weekKey === wk);
+    return {
+      week_start: wk,
+      fwd_short_found: a ? a.count : 0,
+      fwd_no_short: b ? b.count : 0,
+      fwd_camera_issues: c ? c.count : 0,
+    };
+  });
+}
+
+/**
+ * Combined pivot when "all movements": REV issue kinds + FWD short buckets per week.
+ * @param {ReturnType<typeof annotateRows>} rows
+ */
+export function buildWeeklyPivotRowsAllMovements(rows, dateCol) {
+  if (!dateCol) return [];
+  const weekKeys = getFilledWeekKeysBetweenMinMax(rows, dateCol);
+  if (!weekKeys.length) return [];
+  const rev = rows.filter((r) => r.__movement === "rev");
+  const fwd = rows.filter((r) => r.__movement === "fwd");
+  const revPartial = buildWeeklySeriesForKind(rev, dateCol, "partial_bagging", weekKeys);
+  const revFraud = buildWeeklySeriesForKind(rev, dateCol, "lm_fraud", weekKeys);
+  const revCam = buildWeeklySeriesForKind(rev, dateCol, "camera_issues", weekKeys);
+  const fwdShort = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdShortFoundRow, weekKeys);
+  const fwdNoShort = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdNoShortRow, weekKeys);
+  const fwdCam = buildWeeklySeriesForPredicate(fwd, dateCol, isFwdCameraRow, weekKeys);
+  return weekKeys.map((wk) => {
+    const rp = revPartial.find((x) => x.weekKey === wk);
+    const rf = revFraud.find((x) => x.weekKey === wk);
+    const rc = revCam.find((x) => x.weekKey === wk);
+    const fs = fwdShort.find((x) => x.weekKey === wk);
+    const fn = fwdNoShort.find((x) => x.weekKey === wk);
+    const fc = fwdCam.find((x) => x.weekKey === wk);
+    return {
+      week_start: wk,
+      rev_partial_bagging: rp ? rp.count : 0,
+      rev_lm_fraud: rf ? rf.count : 0,
+      rev_camera_issues: rc ? rc.count : 0,
+      fwd_short_found: fs ? fs.count : 0,
+      fwd_no_short: fn ? fn.count : 0,
+      fwd_camera_issues: fc ? fc.count : 0,
+    };
   });
 }

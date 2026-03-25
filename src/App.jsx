@@ -30,6 +30,9 @@ import {
   compareLatestWeeks,
   sliceLastWeeks,
   buildWeeklyPivotRows,
+  buildWeeklyPivotRowsFwd,
+  buildWeeklyPivotRowsAllMovements,
+  buildWeeklySeriesForPredicate,
   getFilledWeekKeysBetweenMinMax,
   parseFlexibleDate,
   weekKeyFromDate,
@@ -37,7 +40,9 @@ import {
   ISSUE_KIND_LABELS,
   rowsMatchingRcaAggregateKey,
   isFwdHubRiskRow,
-  isFwdScanningTheftRca,
+  isFwdShortFoundRow,
+  isFwdNoShortRow,
+  isFwdCameraRow,
 } from "./lib/analytics.js";
 import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
 import {
@@ -822,6 +827,7 @@ export default function App() {
   }, [dashRcaFilter]);
 
   const colMapSafe = colMap ?? detectColumns(fields);
+  const hasMovementColumn = Boolean(colMapSafe.movement);
 
   const normalizedRows = useMemo(() => {
     const manifestCol = colMapSafe.manifest;
@@ -944,6 +950,38 @@ export default function App() {
     };
   }, [filtered, countsFiltered, uniqueManifestCountFiltered]);
 
+  const revSplitKpis = useMemo(() => {
+    const rows = revScopedRows;
+    return {
+      pending: rows.filter((r) => r.__kind === "pending").length,
+      partial: rows.filter((r) => r.__kind === "partial_bagging").length,
+      fraud: rows.filter((r) => r.__kind === "lm_fraud").length,
+      camera: rows.filter((r) => r.__kind === "camera_issues").length,
+      proper: rows.filter((r) => r.__kind === "proper_bagging").length,
+    };
+  }, [revScopedRows]);
+
+  const fwdSplitKpis = useMemo(() => {
+    const rows = fwdScopedRows;
+    return {
+      pending: rows.filter((r) => r.__kind === "pending").length,
+      shortFound: rows.filter(isFwdShortFoundRow).length,
+      noShort: rows.filter(isFwdNoShortRow).length,
+      camera: rows.filter(isFwdCameraRow).length,
+      proper: rows.filter((r) => r.__kind === "proper_bagging").length,
+    };
+  }, [fwdScopedRows]);
+
+  const fwdOnlyKpis = useMemo(() => {
+    if (!hasMovementColumn || movementFilter !== "fwd") return null;
+    return {
+      shortFound: filtered.filter(isFwdShortFoundRow).length,
+      noShort: filtered.filter(isFwdNoShortRow).length,
+      camera: filtered.filter(isFwdCameraRow).length,
+      hubRisk: filtered.filter(isFwdHubRiskRow).length,
+    };
+  }, [filtered, hasMovementColumn, movementFilter]);
+
   const weeklyWeekKeys = useMemo(() => {
     const dc = colMapSafe.date;
     if (!dc) return [];
@@ -953,21 +991,49 @@ export default function App() {
   const weeklyByIssue = useMemo(() => {
     const dc = colMapSafe.date;
     if (!dc) {
-      return {
-        dateCol: null,
-        partial: [],
-        fraud: [],
-        camera: [],
-      };
+      return { dateCol: null, mode: "none" };
     }
     const wk = weeklyWeekKeys.length ? weeklyWeekKeys : null;
+    if (!hasMovementColumn) {
+      return {
+        dateCol: dc,
+        mode: "rev_legacy",
+        partial: buildWeeklySeriesForKind(filtered, dc, "partial_bagging", wk ?? undefined),
+        fraud: buildWeeklySeriesForKind(filtered, dc, "lm_fraud", wk ?? undefined),
+        camera: buildWeeklySeriesForKind(filtered, dc, "camera_issues", wk ?? undefined),
+      };
+    }
+    if (movementFilter === "fwd") {
+      return {
+        dateCol: dc,
+        mode: "fwd",
+        fwdShort: buildWeeklySeriesForPredicate(filtered, dc, isFwdShortFoundRow, wk ?? undefined),
+        fwdNoShort: buildWeeklySeriesForPredicate(filtered, dc, isFwdNoShortRow, wk ?? undefined),
+        fwdCam: buildWeeklySeriesForPredicate(filtered, dc, isFwdCameraRow, wk ?? undefined),
+      };
+    }
+    if (movementFilter === "rev") {
+      return {
+        dateCol: dc,
+        mode: "rev",
+        partial: buildWeeklySeriesForKind(filtered, dc, "partial_bagging", wk ?? undefined),
+        fraud: buildWeeklySeriesForKind(filtered, dc, "lm_fraud", wk ?? undefined),
+        camera: buildWeeklySeriesForKind(filtered, dc, "camera_issues", wk ?? undefined),
+      };
+    }
+    const revRows = filtered.filter((r) => r.__movement === "rev");
+    const fwdRows = filtered.filter((r) => r.__movement === "fwd");
     return {
       dateCol: dc,
-      partial: buildWeeklySeriesForKind(filtered, dc, "partial_bagging", wk ?? undefined),
-      fraud: buildWeeklySeriesForKind(filtered, dc, "lm_fraud", wk ?? undefined),
-      camera: buildWeeklySeriesForKind(filtered, dc, "camera_issues", wk ?? undefined),
+      mode: "all",
+      revPartial: buildWeeklySeriesForKind(revRows, dc, "partial_bagging", wk ?? undefined),
+      revFraud: buildWeeklySeriesForKind(revRows, dc, "lm_fraud", wk ?? undefined),
+      revCam: buildWeeklySeriesForKind(revRows, dc, "camera_issues", wk ?? undefined),
+      fwdShort: buildWeeklySeriesForPredicate(fwdRows, dc, isFwdShortFoundRow, wk ?? undefined),
+      fwdNoShort: buildWeeklySeriesForPredicate(fwdRows, dc, isFwdNoShortRow, wk ?? undefined),
+      fwdCam: buildWeeklySeriesForPredicate(fwdRows, dc, isFwdCameraRow, wk ?? undefined),
     };
-  }, [filtered, colMapSafe.date, weeklyWeekKeys]);
+  }, [filtered, colMapSafe.date, weeklyWeekKeys, hasMovementColumn, movementFilter]);
 
   const weeklyParseableCount = useMemo(() => {
     const dc = colMapSafe.date;
@@ -979,10 +1045,13 @@ export default function App() {
     return n;
   }, [filtered, colMapSafe.date]);
 
-  const weeklyPivotRows = useMemo(
-    () => (colMapSafe.date ? buildWeeklyPivotRows(filtered, colMapSafe.date) : []),
-    [filtered, colMapSafe.date]
-  );
+  const weeklyPivotRows = useMemo(() => {
+    if (!colMapSafe.date) return [];
+    if (!hasMovementColumn) return buildWeeklyPivotRows(filtered, colMapSafe.date);
+    if (movementFilter === "fwd") return buildWeeklyPivotRowsFwd(filtered, colMapSafe.date);
+    if (movementFilter === "rev") return buildWeeklyPivotRows(filtered, colMapSafe.date);
+    return buildWeeklyPivotRowsAllMovements(filtered, colMapSafe.date);
+  }, [filtered, colMapSafe.date, hasMovementColumn, movementFilter]);
 
   const pocProductivityList = useMemo(
     () => aggregatePocProductivity(filtered, colMapSafe.poc),
@@ -1398,8 +1467,6 @@ export default function App() {
     }),
     [isDark, zonePairsFwd, fwdScopedRows, colMapSafe.zone, exportFields, dashCsvName]
   );
-
-  const hasMovementColumn = Boolean(colMapSafe.movement);
 
   const ingestParsed = useCallback((res, name) => {
     setError("");
@@ -2308,9 +2375,9 @@ export default function App() {
                     Forward (FWD)
                   </h3>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Pendency, short-count flags, and camera issues from DC hubs.
+                    Pendency · short found · no short found · camera (same logic as KPI cards).
                   </p>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {[
                       {
                         label: "Pendency",
@@ -2327,28 +2394,26 @@ export default function App() {
                         tone: "text-slate-800 dark:text-slate-100",
                       },
                       {
-                        label: "Short / scan flags",
-                        n: fwdScopedRows.filter(
-                          (r) =>
-                            !r.__pending &&
-                            r.__kind !== "camera_issues" &&
-                            isFwdScanningTheftRca(r.__rcaText)
-                        ).length,
+                        label: "Short found",
+                        n: fwdScopedRows.filter(isFwdShortFoundRow).length,
                         dl: () =>
                           downloadCsv(
-                            dashCsvName("fwd-short-scan"),
-                            stripExportRows(
-                              fwdScopedRows.filter(
-                                (r) =>
-                                  !r.__pending &&
-                                  r.__kind !== "camera_issues" &&
-                                  isFwdScanningTheftRca(r.__rcaText)
-                              ),
-                              exportFields
-                            ),
+                            dashCsvName("fwd-short-found-hero"),
+                            stripExportRows(fwdScopedRows.filter(isFwdShortFoundRow), exportFields),
                             exportFields
                           ),
                         tone: "text-amber-800 dark:text-amber-200",
+                      },
+                      {
+                        label: "No short found",
+                        n: fwdScopedRows.filter(isFwdNoShortRow).length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("fwd-no-short-hero"),
+                            stripExportRows(fwdScopedRows.filter(isFwdNoShortRow), exportFields),
+                            exportFields
+                          ),
+                        tone: "text-red-700 dark:text-red-300",
                       },
                       {
                         label: "Camera issues",
@@ -2460,7 +2525,7 @@ export default function App() {
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   Showing: Forward (FWD)
                 </h3>
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                   {[
                     {
                       label: "Pendency",
@@ -2473,25 +2538,22 @@ export default function App() {
                         ),
                     },
                     {
-                      label: "Short / scan flags",
-                      n: filtered.filter(
-                        (r) =>
-                          !r.__pending &&
-                          r.__kind !== "camera_issues" &&
-                          isFwdScanningTheftRca(r.__rcaText)
-                      ).length,
+                      label: "Short found",
+                      n: filtered.filter(isFwdShortFoundRow).length,
                       dl: () =>
                         downloadCsv(
-                          dashCsvName("short-scan-fwd"),
-                          stripExportRows(
-                            filtered.filter(
-                              (r) =>
-                                !r.__pending &&
-                                r.__kind !== "camera_issues" &&
-                                isFwdScanningTheftRca(r.__rcaText)
-                            ),
-                            exportFields
-                          ),
+                          dashCsvName("short-found-fwd"),
+                          stripExportRows(filtered.filter(isFwdShortFoundRow), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "No short found",
+                      n: filtered.filter(isFwdNoShortRow).length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("no-short-fwd"),
+                          stripExportRows(filtered.filter(isFwdNoShortRow), exportFields),
                           exportFields
                         ),
                     },
@@ -2689,151 +2751,471 @@ export default function App() {
               </div>
             </div>
 
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {[
-                {
-                  title: "Total Records",
-                  value: kpis.total,
-                  sub: colMapSafe.manifest
-                    ? `Unique ${colMapSafe.manifest} in current view`
-                    : "Rows in current view",
-                  icon: "📊",
-                  tone: "text-sfx dark:text-sfx-cta",
-                  dl: () =>
-                    downloadCsv(dashCsvName("all-records"), stripExportRows(filtered, exportFields), exportFields),
-                },
-                {
-                  title: "Pendency (no RCA)",
-                  value: kpis.pending,
-                  sub: "Awaiting root cause",
-                  icon: "⏳",
-                  tone: "text-slate-700 dark:text-slate-200",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("pendency-no-rca"),
-                      stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
-                      exportFields
-                    ),
-                },
-                {
-                  title: "Proper Bagging",
-                  value: kpis.proper,
-                  sub: `${kpis.properRate}% rate`,
-                  icon: "✓",
-                  tone: "text-emerald-600 dark:text-emerald-400",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("proper-bagging"),
-                      stripExportRows(
-                        filtered.filter((r) => r.__kind === "proper_bagging"),
-                        exportFields
-                      ),
-                      exportFields
-                    ),
-                },
-                {
-                  title: "Partial Bagging",
-                  value: kpis.partial,
-                  sub: "Watchlist",
-                  icon: "📦",
-                  tone: "text-orange-600 dark:text-orange-400",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("partial-bagging-kpi"),
-                      stripExportRows(
-                        filtered.filter((r) => r.__kind === "partial_bagging"),
-                        exportFields
-                      ),
-                      exportFields
-                    ),
-                },
-                {
-                  title: "LM Fraud",
-                  value: kpis.fraud,
-                  sub: "Escalations",
-                  icon: "⚠",
-                  tone: "text-red-600 dark:text-red-400",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("lm-fraud-kpi"),
-                      stripExportRows(
-                        filtered.filter((r) => r.__kind === "lm_fraud"),
-                        exportFields
-                      ),
-                      exportFields
-                    ),
-                },
-                {
-                  title: "Camera / CCTV issues",
-                  value: kpis.camera,
-                  sub: "Hardware / feed",
-                  icon: "📹",
-                  tone: "text-violet-600 dark:text-violet-400",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("camera-issues"),
-                      stripExportRows(
-                        filtered.filter((r) => r.__kind === "camera_issues"),
-                        exportFields
-                      ),
-                      exportFields
-                    ),
-                },
-                {
-                  title: "Total Issues",
-                  value: kpis.issueLike,
-                  sub: `${kpis.issueRate}% of records`,
-                  icon: "✕",
-                  tone: "text-slate-800 dark:text-slate-100",
-                  dl: () =>
-                    downloadCsv(
-                      dashCsvName("total-issues"),
-                      stripExportRows(
-                        filtered.filter((r) =>
-                          [
-                            "partial_bagging",
-                            "lm_fraud",
-                            "camera_issues",
-                            "no_footage",
-                            "offline",
-                            "multiple_bagging",
-                            "unable_to_validate",
-                            "other",
-                          ].includes(r.__kind)
-                        ),
-                        exportFields
-                      ),
-                      exportFields
-                    ),
-                },
-              ].map((k) => (
-                <div key={k.title} className="surface-card relative">
-                  <button
-                    type="button"
-                    onClick={k.dl}
-                    className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                    title={`Download ${k.title} rows`}
-                  >
-                    <DownloadIcon className="h-4 w-4" />
-                  </button>
-                  <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
-                    <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
-                    <div>
-                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
-                      <button
-                        type="button"
-                        onClick={k.dl}
-                        title={`Download ${k.title} rows only`}
-                        className={`mt-1 block w-full text-left text-2xl font-bold tabular-nums tracking-tight transition hover:opacity-90 xs:text-3xl ${k.tone}`}
-                      >
-                        {k.value.toLocaleString()}
-                      </button>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
+            {hasMovementColumn && movementFilter === "all" ? (
+              <div className="space-y-4">
+                <div className="surface-card">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    In scope (all movements)
+                  </p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {kpis.total.toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    {colMapSafe.manifest
+                      ? `Unique ${colMapSafe.manifest} — compare REV vs FWD panels below`
+                      : "Total rows — compare REV vs FWD panels below"}
+                  </p>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-sfx dark:text-sfx-cta">
+                      Reverse (REV)
+                    </h3>
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {[
+                        {
+                          title: "Pendency",
+                          value: revSplitKpis.pending,
+                          sub: "No RCA",
+                          icon: "⏳",
+                          tone: "text-slate-800 dark:text-slate-100",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("rev-pendency-kpi"),
+                              stripExportRows(
+                                revScopedRows.filter((r) => r.__kind === "pending"),
+                                exportFields
+                              ),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Partial bagging",
+                          value: revSplitKpis.partial,
+                          sub: "Watchlist",
+                          icon: "📦",
+                          tone: "text-orange-600 dark:text-orange-400",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("rev-partial-kpi"),
+                              stripExportRows(
+                                revScopedRows.filter((r) => r.__kind === "partial_bagging"),
+                                exportFields
+                              ),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "LM Fraud",
+                          value: revSplitKpis.fraud,
+                          sub: "Escalations",
+                          icon: "⚠",
+                          tone: "text-red-600 dark:text-red-400",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("rev-fraud-kpi"),
+                              stripExportRows(
+                                revScopedRows.filter((r) => r.__kind === "lm_fraud"),
+                                exportFields
+                              ),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Camera",
+                          value: revSplitKpis.camera,
+                          sub: "CCTV issues",
+                          icon: "📹",
+                          tone: "text-violet-600 dark:text-violet-400",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("rev-camera-kpi"),
+                              stripExportRows(
+                                revScopedRows.filter((r) => r.__kind === "camera_issues"),
+                                exportFields
+                              ),
+                              exportFields
+                            ),
+                        },
+                      ].map((k) => (
+                        <div key={k.title} className="rounded-xl border border-slate-200/90 bg-slate-50/90 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {k.title}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={k.dl}
+                            className={`mt-1 block w-full text-left text-xl font-bold tabular-nums ${k.tone}`}
+                          >
+                            {k.value.toLocaleString()}
+                          </button>
+                          <p className="text-xs text-slate-500 dark:text-slate-500">{k.sub}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="surface-card border-l-4 border-l-amber-500 dark:border-l-amber-400">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                      Forward (FWD)
+                    </h3>
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {[
+                        {
+                          title: "Pendency",
+                          value: fwdSplitKpis.pending,
+                          sub: "No RCA",
+                          tone: "text-slate-800 dark:text-slate-100",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-pendency-kpi"),
+                              stripExportRows(
+                                fwdScopedRows.filter((r) => r.__kind === "pending"),
+                                exportFields
+                              ),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Short found",
+                          value: fwdSplitKpis.shortFound,
+                          sub: "Scan mismatch",
+                          tone: "text-amber-800 dark:text-amber-200",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-short-found-kpi"),
+                              stripExportRows(fwdScopedRows.filter(isFwdShortFoundRow), exportFields),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "No short found",
+                          value: fwdSplitKpis.noShort,
+                          sub: "Theft / process risk",
+                          tone: "text-red-700 dark:text-red-300",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-no-short-kpi"),
+                              stripExportRows(fwdScopedRows.filter(isFwdNoShortRow), exportFields),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Camera",
+                          value: fwdSplitKpis.camera,
+                          sub: "FWD hubs",
+                          tone: "text-violet-600 dark:text-violet-400",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-camera-kpi"),
+                              stripExportRows(fwdScopedRows.filter(isFwdCameraRow), exportFields),
+                              exportFields
+                            ),
+                        },
+                      ].map((k) => (
+                        <div key={k.title} className="rounded-xl border border-slate-200/90 bg-slate-50/90 p-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {k.title}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={k.dl}
+                            className={`mt-1 block w-full text-left text-xl font-bold tabular-nums ${k.tone}`}
+                          >
+                            {k.value.toLocaleString()}
+                          </button>
+                          <p className="text-xs text-slate-500 dark:text-slate-500">{k.sub}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ))}
-            </section>
+              </div>
+            ) : hasMovementColumn && movementFilter === "fwd" && fwdOnlyKpis ? (
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {[
+                  {
+                    title: "Total Records",
+                    value: kpis.total,
+                    sub: colMapSafe.manifest
+                      ? `Unique ${colMapSafe.manifest} · Forward only`
+                      : "Forward rows in view",
+                    icon: "📊",
+                    tone: "text-sfx dark:text-sfx-cta",
+                    dl: () =>
+                      downloadCsv(dashCsvName("fwd-all-records"), stripExportRows(filtered, exportFields), exportFields),
+                  },
+                  {
+                    title: "Pendency (no RCA)",
+                    value: kpis.pending,
+                    sub: "Awaiting root cause",
+                    icon: "⏳",
+                    tone: "text-slate-700 dark:text-slate-200",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-pendency-no-rca"),
+                        stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Short found",
+                    value: fwdOnlyKpis.shortFound,
+                    sub: "RCA: short found / validated",
+                    icon: "📦",
+                    tone: "text-amber-600 dark:text-amber-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-short-found"),
+                        stripExportRows(filtered.filter(isFwdShortFoundRow), exportFields),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "No short found",
+                    value: fwdOnlyKpis.noShort,
+                    sub: "Same role as LM Fraud on reverse",
+                    icon: "⚠",
+                    tone: "text-red-600 dark:text-red-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-no-short-found"),
+                        stripExportRows(filtered.filter(isFwdNoShortRow), exportFields),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Camera / CCTV (FWD)",
+                    value: fwdOnlyKpis.camera,
+                    sub: "Hardware / feed",
+                    icon: "📹",
+                    tone: "text-violet-600 dark:text-violet-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-camera-issues"),
+                        stripExportRows(filtered.filter(isFwdCameraRow), exportFields),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Proper bagging",
+                    value: kpis.proper,
+                    sub: `${kpis.properRate}% rate`,
+                    icon: "✓",
+                    tone: "text-emerald-600 dark:text-emerald-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-proper"),
+                        stripExportRows(
+                          filtered.filter((r) => r.__kind === "proper_bagging"),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Total FWD issues",
+                    value:
+                      fwdOnlyKpis.shortFound +
+                      fwdOnlyKpis.noShort +
+                      fwdOnlyKpis.camera +
+                      filtered.filter((r) =>
+                        ["no_footage", "offline", "multiple_bagging", "unable_to_validate", "other"].includes(
+                          r.__kind
+                        )
+                      ).length,
+                    sub: "Excludes pendency & proper",
+                    icon: "✕",
+                    tone: "text-slate-800 dark:text-slate-100",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("fwd-total-issues"),
+                        stripExportRows(
+                          filtered.filter(
+                            (r) =>
+                              r.__kind !== "pending" &&
+                              r.__kind !== "proper_bagging" &&
+                              r.__kind !== "closed"
+                          ),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                ].map((k) => (
+                  <div key={k.title} className="surface-card relative">
+                    <button
+                      type="button"
+                      onClick={k.dl}
+                      className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      title={`Download ${k.title} rows`}
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
+                      <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
+                        <button
+                          type="button"
+                          onClick={k.dl}
+                          title={`Download ${k.title} rows only`}
+                          className={`mt-1 block w-full text-left text-2xl font-bold tabular-nums tracking-tight transition hover:opacity-90 xs:text-3xl ${k.tone}`}
+                        >
+                          {typeof k.value === "number" ? k.value.toLocaleString() : k.value}
+                        </button>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            ) : (
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {[
+                  {
+                    title: "Total Records",
+                    value: kpis.total,
+                    sub: colMapSafe.manifest
+                      ? `Unique ${colMapSafe.manifest} in current view`
+                      : "Rows in current view",
+                    icon: "📊",
+                    tone: "text-sfx dark:text-sfx-cta",
+                    dl: () =>
+                      downloadCsv(dashCsvName("all-records"), stripExportRows(filtered, exportFields), exportFields),
+                  },
+                  {
+                    title: "Pendency (no RCA)",
+                    value: kpis.pending,
+                    sub: "Awaiting root cause",
+                    icon: "⏳",
+                    tone: "text-slate-700 dark:text-slate-200",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("pendency-no-rca"),
+                        stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Proper Bagging",
+                    value: kpis.proper,
+                    sub: `${kpis.properRate}% rate`,
+                    icon: "✓",
+                    tone: "text-emerald-600 dark:text-emerald-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("proper-bagging"),
+                        stripExportRows(
+                          filtered.filter((r) => r.__kind === "proper_bagging"),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Partial Bagging",
+                    value: kpis.partial,
+                    sub: "Watchlist",
+                    icon: "📦",
+                    tone: "text-orange-600 dark:text-orange-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("partial-bagging-kpi"),
+                        stripExportRows(
+                          filtered.filter((r) => r.__kind === "partial_bagging"),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "LM Fraud",
+                    value: kpis.fraud,
+                    sub: "Escalations",
+                    icon: "⚠",
+                    tone: "text-red-600 dark:text-red-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("lm-fraud-kpi"),
+                        stripExportRows(
+                          filtered.filter((r) => r.__kind === "lm_fraud"),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Camera / CCTV issues",
+                    value: kpis.camera,
+                    sub: "Hardware / feed",
+                    icon: "📹",
+                    tone: "text-violet-600 dark:text-violet-400",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("camera-issues"),
+                        stripExportRows(
+                          filtered.filter((r) => r.__kind === "camera_issues"),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                  {
+                    title: "Total Issues",
+                    value: kpis.issueLike,
+                    sub: `${kpis.issueRate}% of records`,
+                    icon: "✕",
+                    tone: "text-slate-800 dark:text-slate-100",
+                    dl: () =>
+                      downloadCsv(
+                        dashCsvName("total-issues"),
+                        stripExportRows(
+                          filtered.filter((r) =>
+                            [
+                              "partial_bagging",
+                              "lm_fraud",
+                              "camera_issues",
+                              "no_footage",
+                              "offline",
+                              "multiple_bagging",
+                              "unable_to_validate",
+                              "other",
+                            ].includes(r.__kind)
+                          ),
+                          exportFields
+                        ),
+                        exportFields
+                      ),
+                  },
+                ].map((k) => (
+                  <div key={k.title} className="surface-card relative">
+                    <button
+                      type="button"
+                      onClick={k.dl}
+                      className="absolute right-3 top-3 rounded-xl border border-slate-200/90 bg-white/80 p-1.5 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-800 sm:right-4 sm:top-4 sm:p-2 dark:border-slate-600/70 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      title={`Download ${k.title} rows`}
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-start gap-2 pr-11 sm:gap-3 sm:pr-14">
+                      <span className="shrink-0 text-xl sm:text-2xl">{k.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{k.title}</p>
+                        <button
+                          type="button"
+                          onClick={k.dl}
+                          title={`Download ${k.title} rows only`}
+                          className={`mt-1 block w-full text-left text-2xl font-bold tabular-nums tracking-tight transition hover:opacity-90 xs:text-3xl ${k.tone}`}
+                        >
+                          {k.value.toLocaleString()}
+                        </button>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{k.sub}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
 
             <div className="surface-card">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -3111,25 +3493,42 @@ export default function App() {
               )}
             </div>
 
-            {weeklyByIssue.dateCol ? (
+            {weeklyByIssue.dateCol && weeklyByIssue.mode !== "none" ? (
               <div className="surface-card">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
                       Weekly trends
                     </h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {weeklyByIssue.mode === "fwd"
+                        ? "Forward short remarks (short found · no short · camera)"
+                        : weeklyByIssue.mode === "all"
+                          ? "Reverse issue kinds and forward short buckets side by side"
+                          : "Partial bagging · LM fraud · camera (reverse-style metrics)"}
+                    </p>
                   </div>
                   <DownloadBtn
                     count={weeklyPivotRows.length}
                     variant="blue"
                     label="Weekly trends"
-                    onClickSlice={() =>
-                      downloadCsv(
-                        dashCsvName("weekly-trends-partial-fraud-camera"),
-                        weeklyPivotRows,
-                        ["week_start", "partial_bagging", "lm_fraud", "camera_issues"]
-                      )
-                    }
+                    onClickSlice={() => {
+                      const cols =
+                        weeklyByIssue.mode === "fwd"
+                          ? ["week_start", "fwd_short_found", "fwd_no_short", "fwd_camera_issues"]
+                          : weeklyByIssue.mode === "all"
+                            ? [
+                                "week_start",
+                                "rev_partial_bagging",
+                                "rev_lm_fraud",
+                                "rev_camera_issues",
+                                "fwd_short_found",
+                                "fwd_no_short",
+                                "fwd_camera_issues",
+                              ]
+                            : ["week_start", "partial_bagging", "lm_fraud", "camera_issues"];
+                      downloadCsv(dashCsvName("weekly-trends"), weeklyPivotRows, cols);
+                    }}
                   />
                 </div>
                 {weeklyParseableCount === 0 ? (
@@ -3137,6 +3536,381 @@ export default function App() {
                     No values in <strong>{weeklyByIssue.dateCol}</strong> parsed as dates. Try
                     ISO dates (2025-03-15), DD/MM/YYYY, or Excel serial numbers.
                   </p>
+                ) : weeklyByIssue.mode === "fwd" ? (
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    {[
+                      {
+                        title: "Short found",
+                        icon: "📦",
+                        series: weeklyByIssue.fwdShort,
+                        border: "rgb(234 88 12)",
+                        fill: "rgba(234, 88, 12, 0.12)",
+                        file: "weekly-fwd-short-found.csv",
+                        col: "fwd_short_found",
+                        slice: "fwd_short",
+                      },
+                      {
+                        title: "No short found",
+                        icon: "⚠",
+                        series: weeklyByIssue.fwdNoShort,
+                        border: "rgb(220 38 38)",
+                        fill: "rgba(220, 38, 38, 0.12)",
+                        file: "weekly-fwd-no-short.csv",
+                        col: "fwd_no_short",
+                        slice: "fwd_no_short",
+                      },
+                      {
+                        title: "Camera (FWD)",
+                        icon: "📹",
+                        series: weeklyByIssue.fwdCam,
+                        border: "rgb(124 58 237)",
+                        fill: "rgba(124, 58, 237, 0.12)",
+                        file: "weekly-fwd-camera.csv",
+                        col: "fwd_camera_issues",
+                        slice: "fwd_camera",
+                      },
+                    ].map((m) => {
+                      const trend = compareLatestWeeks(m.series);
+                      const refSeries = weeklyByIssue.fwdShort;
+                      const dk = refSeries?.length ? refSeries[refSeries.length - 1]?.weekKey : null;
+                      return (
+                        <div key={m.title} className="surface-muted flex flex-col p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+                              <span>{m.icon}</span>
+                              {m.title}
+                            </h3>
+                            <DownloadBtn
+                              count={m.series.reduce((s, x) => s + x.count, 0)}
+                              variant="slate"
+                              label={m.title}
+                              onClickSlice={() =>
+                                downloadCsv(
+                                  dashCsvName(String(m.file).replace(/\.csv$/i, "")),
+                                  m.series.map((s) => ({
+                                    week_start: s.weekKey,
+                                    [m.col]: s.count,
+                                  })),
+                                  ["week_start", m.col]
+                                )
+                              }
+                            />
+                          </div>
+                          <p
+                            className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${issueTrendPillClass(
+                              trend.direction
+                            )}`}
+                          >
+                            {trend.summary}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                            Latest week:{" "}
+                            <button
+                              type="button"
+                              disabled={!colMapSafe.date}
+                              onClick={() => {
+                                const wk =
+                                  m.series.length > 0 ? m.series[m.series.length - 1].weekKey : dk;
+                                if (!wk || !colMapSafe.date) return;
+                                const dc = colMapSafe.date;
+                                let subset = filtered;
+                                if (m.slice === "fwd_short")
+                                  subset = filtered.filter((r) => {
+                                    const d = parseFlexibleDate(r[dc]);
+                                    return d && weekKeyFromDate(d) === wk && isFwdShortFoundRow(r);
+                                  });
+                                else if (m.slice === "fwd_no_short")
+                                  subset = filtered.filter((r) => {
+                                    const d = parseFlexibleDate(r[dc]);
+                                    return d && weekKeyFromDate(d) === wk && isFwdNoShortRow(r);
+                                  });
+                                else if (m.slice === "fwd_camera")
+                                  subset = filtered.filter((r) => {
+                                    const d = parseFlexibleDate(r[dc]);
+                                    return d && weekKeyFromDate(d) === wk && isFwdCameraRow(r);
+                                  });
+                                downloadCsv(
+                                  dashCsvName("weekly-latest", m.slice, wk),
+                                  stripExportRows(subset, exportFields),
+                                  exportFields
+                                );
+                              }}
+                              className="font-semibold text-slate-700 underline decoration-slate-400/60 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:text-slate-300 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                              title="Download rows in latest week for this category"
+                            >
+                              {trend.last}
+                            </button>
+                            {trend.prev != null ? (
+                              <>
+                                {" "}
+                                · Prior:{" "}
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                  {trend.prev}
+                                </span>
+                              </>
+                            ) : null}
+                          </p>
+                          <div className="mt-3 flex-1">
+                            <TrendSparkline
+                              series={m.series}
+                              borderColor={m.border}
+                              fillColor={m.fill}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : weeklyByIssue.mode === "all" ? (
+                  <div className="space-y-8">
+                    <div>
+                      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-sfx dark:text-sfx-cta">
+                        Reverse (REV)
+                      </h3>
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        {[
+                          {
+                            title: "Partial Bagging",
+                            icon: "📦",
+                            series: weeklyByIssue.revPartial,
+                            border: "rgb(234 88 12)",
+                            fill: "rgba(234, 88, 12, 0.12)",
+                            file: "weekly-rev-partial.csv",
+                            col: "rev_partial_bagging",
+                            kind: "partial_bagging",
+                            revOnly: true,
+                          },
+                          {
+                            title: "LM Fraud",
+                            icon: "⚠",
+                            series: weeklyByIssue.revFraud,
+                            border: "rgb(220 38 38)",
+                            fill: "rgba(220, 38, 38, 0.12)",
+                            file: "weekly-rev-fraud.csv",
+                            col: "rev_lm_fraud",
+                            kind: "lm_fraud",
+                            revOnly: true,
+                          },
+                          {
+                            title: "Camera issues",
+                            icon: "📹",
+                            series: weeklyByIssue.revCam,
+                            border: "rgb(124 58 237)",
+                            fill: "rgba(124, 58, 237, 0.12)",
+                            file: "weekly-rev-camera.csv",
+                            col: "rev_camera_issues",
+                            kind: "camera_issues",
+                            revOnly: true,
+                          },
+                        ].map((m) => {
+                          const trend = compareLatestWeeks(m.series);
+                          const ref = weeklyByIssue.revPartial;
+                          const dk = ref?.length ? ref[ref.length - 1]?.weekKey : null;
+                          return (
+                            <div key={m.title} className="surface-muted flex flex-col p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+                                  <span>{m.icon}</span>
+                                  {m.title}
+                                </h3>
+                                <DownloadBtn
+                                  count={m.series.reduce((s, x) => s + x.count, 0)}
+                                  variant="slate"
+                                  label={m.title}
+                                  onClickSlice={() =>
+                                    downloadCsv(
+                                      dashCsvName(String(m.file).replace(/\.csv$/i, "")),
+                                      m.series.map((s) => ({
+                                        week_start: s.weekKey,
+                                        [m.col]: s.count,
+                                      })),
+                                      ["week_start", m.col]
+                                    )
+                                  }
+                                />
+                              </div>
+                              <p
+                                className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${issueTrendPillClass(
+                                  trend.direction
+                                )}`}
+                              >
+                                {trend.summary}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                                Latest week:{" "}
+                                <button
+                                  type="button"
+                                  disabled={!colMapSafe.date}
+                                  onClick={() => {
+                                    const wk =
+                                      m.series.length > 0 ? m.series[m.series.length - 1].weekKey : dk;
+                                    if (!wk || !colMapSafe.date) return;
+                                    const dc = colMapSafe.date;
+                                    const subset = filtered.filter((r) => {
+                                      if (r.__movement !== "rev" || r.__kind !== m.kind) return false;
+                                      const d = parseFlexibleDate(r[dc]);
+                                      return d && weekKeyFromDate(d) === wk;
+                                    });
+                                    downloadCsv(
+                                      dashCsvName("weekly-latest-rev", m.kind, wk),
+                                      stripExportRows(subset, exportFields),
+                                      exportFields
+                                    );
+                                  }}
+                                  className="font-semibold text-slate-700 underline decoration-slate-400/60 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:text-slate-300 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                                  title="Download REV rows in latest week"
+                                >
+                                  {trend.last}
+                                </button>
+                              </p>
+                              <div className="mt-3 flex-1">
+                                <TrendSparkline
+                                  series={m.series}
+                                  borderColor={m.border}
+                                  fillColor={m.fill}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                        Forward (FWD)
+                      </h3>
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        {[
+                          {
+                            title: "Short found",
+                            icon: "📦",
+                            series: weeklyByIssue.fwdShort,
+                            border: "rgb(234 88 12)",
+                            fill: "rgba(234, 88, 12, 0.12)",
+                            file: "weekly-all-fwd-short.csv",
+                            col: "fwd_short_found",
+                            slice: "fwd_short",
+                          },
+                          {
+                            title: "No short found",
+                            icon: "⚠",
+                            series: weeklyByIssue.fwdNoShort,
+                            border: "rgb(220 38 38)",
+                            fill: "rgba(220, 38, 38, 0.12)",
+                            file: "weekly-all-fwd-no-short.csv",
+                            col: "fwd_no_short",
+                            slice: "fwd_no_short",
+                          },
+                          {
+                            title: "Camera (FWD)",
+                            icon: "📹",
+                            series: weeklyByIssue.fwdCam,
+                            border: "rgb(124 58 237)",
+                            fill: "rgba(124, 58, 237, 0.12)",
+                            file: "weekly-all-fwd-camera.csv",
+                            col: "fwd_camera_issues",
+                            slice: "fwd_camera",
+                          },
+                        ].map((m) => {
+                          const trend = compareLatestWeeks(m.series);
+                          const ref = weeklyByIssue.fwdShort;
+                          const dk = ref?.length ? ref[ref.length - 1]?.weekKey : null;
+                          return (
+                            <div key={m.title} className="surface-muted flex flex-col p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+                                  <span>{m.icon}</span>
+                                  {m.title}
+                                </h3>
+                                <DownloadBtn
+                                  count={m.series.reduce((s, x) => s + x.count, 0)}
+                                  variant="slate"
+                                  label={m.title}
+                                  onClickSlice={() =>
+                                    downloadCsv(
+                                      dashCsvName(String(m.file).replace(/\.csv$/i, "")),
+                                      m.series.map((s) => ({
+                                        week_start: s.weekKey,
+                                        [m.col]: s.count,
+                                      })),
+                                      ["week_start", m.col]
+                                    )
+                                  }
+                                />
+                              </div>
+                              <p
+                                className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${issueTrendPillClass(
+                                  trend.direction
+                                )}`}
+                              >
+                                {trend.summary}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+                                Latest week:{" "}
+                                <button
+                                  type="button"
+                                  disabled={!colMapSafe.date}
+                                  onClick={() => {
+                                    const wk =
+                                      m.series.length > 0 ? m.series[m.series.length - 1].weekKey : dk;
+                                    if (!wk || !colMapSafe.date) return;
+                                    const dc = colMapSafe.date;
+                                    let subset = filtered;
+                                    if (m.slice === "fwd_short")
+                                      subset = filtered.filter((r) => {
+                                        const d = parseFlexibleDate(r[dc]);
+                                        return (
+                                          d &&
+                                          weekKeyFromDate(d) === wk &&
+                                          r.__movement === "fwd" &&
+                                          isFwdShortFoundRow(r)
+                                        );
+                                      });
+                                    else if (m.slice === "fwd_no_short")
+                                      subset = filtered.filter((r) => {
+                                        const d = parseFlexibleDate(r[dc]);
+                                        return (
+                                          d &&
+                                          weekKeyFromDate(d) === wk &&
+                                          r.__movement === "fwd" &&
+                                          isFwdNoShortRow(r)
+                                        );
+                                      });
+                                    else if (m.slice === "fwd_camera")
+                                      subset = filtered.filter((r) => {
+                                        const d = parseFlexibleDate(r[dc]);
+                                        return (
+                                          d &&
+                                          weekKeyFromDate(d) === wk &&
+                                          r.__movement === "fwd" &&
+                                          isFwdCameraRow(r)
+                                        );
+                                      });
+                                    downloadCsv(
+                                      dashCsvName("weekly-latest-fwd", m.slice, wk),
+                                      stripExportRows(subset, exportFields),
+                                      exportFields
+                                    );
+                                  }}
+                                  className="font-semibold text-slate-700 underline decoration-slate-400/60 decoration-dotted underline-offset-2 hover:text-sfx disabled:cursor-not-allowed disabled:no-underline dark:text-slate-300 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                                  title="Download FWD rows in latest week"
+                                >
+                                  {trend.last}
+                                </button>
+                              </p>
+                              <div className="mt-3 flex-1">
+                                <TrendSparkline
+                                  series={m.series}
+                                  borderColor={m.border}
+                                  fillColor={m.fill}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="grid gap-4 lg:grid-cols-3">
                     {[
