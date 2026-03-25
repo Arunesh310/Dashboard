@@ -11,6 +11,7 @@ import {
   summarizeCameras,
 } from "./lib/cameraStatus.js";
 import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
+import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 
 function DownloadIcon({ className = "h-4 w-4" }) {
   return (
@@ -265,9 +266,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     return { worstZones, worstPods, notCentralized };
   }, [zoneAgg, podAgg, kpis.notCentralized]);
 
-  const selectClass =
-    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-[border-color,box-shadow,background-color] duration-300 ease-sfx-smooth hover:border-sfx/35 focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 motion-safe:hover:shadow-sm xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-sfx/45 dark:focus:border-sfx dark:focus:ring-sfx/25";
-  const getSelected = (event) => Array.from(event.target.selectedOptions, (opt) => opt.value);
+  const statusOptions = useMemo(() => ["online", "offline"], []);
+  const formatStatusLabel = useCallback((s) => {
+    if (s === "online") return "Online";
+    if (s === "offline") return "Offline";
+    return s;
+  }, []);
 
   const donutData = useMemo(
     () => {
@@ -475,56 +479,44 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             </button>
           </div>
         </div>
-        <div className="mt-4 grid w-full grid-cols-1 gap-2 xs:grid-cols-2 sm:flex sm:flex-wrap">
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">Zone</span>
-            <select
-              multiple
-              value={zoneFilter}
-              onChange={(e) => setZoneFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by zone"
-            >
-              {zoneOptions.map((z) => (
-                <option key={z} value={z}>
-                  {z || "—"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">POD</span>
-            <select
-              multiple
-              value={podFilter}
-              onChange={(e) => setPodFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by POD"
-            >
-              {podOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p || "—"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">Status</span>
-            <select
-              multiple
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by status"
-            >
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-            </select>
-          </label>
+        <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Zone
+            </span>
+            <MultiSelectDropdownFilter
+              label="Zone"
+              options={zoneOptions}
+              selected={zoneFilter}
+              setSelected={setZoneFilter}
+              formatLabel={(z) => z || "—"}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              POD
+            </span>
+            <MultiSelectDropdownFilter
+              label="POD"
+              options={podOptions}
+              selected={podFilter}
+              setSelected={setPodFilter}
+              formatLabel={(p) => p || "—"}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Status
+            </span>
+            <MultiSelectDropdownFilter
+              label="Status"
+              options={statusOptions}
+              selected={statusFilter}
+              setSelected={setStatusFilter}
+              formatLabel={formatStatusLabel}
+            />
+          </div>
         </div>
-        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          Tip: hold Ctrl/Cmd to select multiple values. No selection means all values.
-        </p>
       </div>
 
       {attentionStrip ? (

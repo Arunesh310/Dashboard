@@ -48,4 +48,45 @@
   .surface-muted {
     @apply rounded-xl border border-sfx/10 bg-sfx-soft/50 transition-[border-color,background-color,box-shadow] duration-300 ease-sfx-smooth dark:border-slate-700/40 dark:bg-slate-800/40 motion-safe:hover:border-sfx/25 dark:motion-safe:hover:border-slate-600/60;
   }
+
+  /** Dashboard scope filters — match surface-card / header button language */
+  .filter-dropdown {
+    @apply relative min-w-0;
+  }
+
+  .filter-dropdown-summary {
+    @apply flex min-h-[44px] w-full cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white/95 px-3.5 py-2.5 text-left text-sm font-semibold text-slate-800 shadow-sm transition-[border-color,box-shadow,background-color] duration-300 ease-sfx-smooth sm:min-h-0 sm:py-2.5 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-100;
+  }
+
+  .filter-dropdown-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .filter-dropdown-summary:hover {
+    @apply border-slate-300/90 dark:border-slate-500/80;
+  }
+
+  .filter-dropdown-summary:focus {
+    @apply outline-none;
+  }
+
+  .filter-dropdown-summary:focus-visible {
+    @apply ring-2 ring-sfx/25 ring-offset-2 ring-offset-white dark:ring-sfx/35 dark:ring-offset-slate-900;
+  }
+
+  details[open] > .filter-dropdown-summary {
+    @apply border-sfx/35 shadow-md shadow-sfx/10 dark:border-sfx/45 dark:shadow-sfx-glow-dark;
+  }
+
+  .filter-dropdown-panel {
+    @apply absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-card-dark;
+  }
+
+  .filter-dropdown-option {
+    @apply flex cursor-pointer items-start gap-2.5 border-b border-slate-100 px-3 py-2 text-sm text-slate-800 transition-colors last:border-b-0 hover:bg-sfx-soft/60 dark:border-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800/70;
+  }
+
+  .filter-dropdown-option input[type="checkbox"] {
+    @apply mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-sfx focus:ring-2 focus:ring-sfx/30 dark:border-slate-500 dark:text-sfx-cta;
+  }
 }

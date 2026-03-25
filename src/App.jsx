@@ -63,6 +63,7 @@ import {
   manifestZoneMapFromDashboardRows,
 } from "./lib/uploadDiff.js";
 import { InsightsBar } from "./InsightsBar.jsx";
+import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 
 ChartJS.register(
   CategoryScale,
@@ -315,10 +316,6 @@ function normalizeStoredMulti(raw) {
   }
   if (typeof raw === "string" && raw !== "all" && raw.trim()) return [raw.trim()];
   return [];
-}
-
-function selectedValuesFromSelectEvent(event) {
-  return Array.from(event.target.selectedOptions, (opt) => opt.value);
 }
 
 function stripExportRows(rows, fields) {
@@ -818,7 +815,7 @@ export default function App() {
   }, [annotated, colMapSafe.zone]);
 
   const dashboardPodOptions = useMemo(() => {
-    const p = colMapSafe.poc;
+    const p = colMapSafe.pod ?? colMapSafe.poc;
     if (!p) return [];
     const set = new Set();
     for (const r of annotated) {
@@ -826,7 +823,7 @@ export default function App() {
       if (v) set.add(v);
     }
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [annotated, colMapSafe.poc]);
+  }, [annotated, colMapSafe.pod, colMapSafe.poc]);
 
   const dashboardRcaOptions = useMemo(() => {
     const set = new Set();
@@ -843,7 +840,7 @@ export default function App() {
     const podSet = new Set(dashPodFilter);
     const rcaSet = new Set(dashRcaFilter);
     const z = colMapSafe.zone;
-    const p = colMapSafe.poc;
+    const p = colMapSafe.pod ?? colMapSafe.poc;
     return issueFiltered.filter((r) => {
       if (zoneSet.size > 0) {
         const zone = z ? canonicalizeZoneLabel(String(r[z] ?? "").trim()) : "";
@@ -2104,59 +2101,51 @@ export default function App() {
             </div>
 
             <div className="surface-card">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span className="text-slate-600 dark:text-slate-400">Zone (multi-select)</span>
-                  <select
-                    multiple
-                    value={dashZoneFilter}
-                    onChange={(e) => setDashZoneFilter(selectedValuesFromSelectEvent(e))}
-                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
-                    aria-label="Filter dashboard by zone"
-                  >
-                    {dashboardZoneOptions.map((z) => (
-                      <option key={z} value={z}>
-                        {z}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span className="text-slate-600 dark:text-slate-400">POD (multi-select)</span>
-                  <select
-                    multiple
-                    value={dashPodFilter}
-                    onChange={(e) => setDashPodFilter(selectedValuesFromSelectEvent(e))}
-                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
-                    aria-label="Filter dashboard by POD"
-                  >
-                    {dashboardPodOptions.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span className="text-slate-600 dark:text-slate-400">RCA (multi-select)</span>
-                  <select
-                    multiple
-                    value={dashRcaFilter}
-                    onChange={(e) => setDashRcaFilter(selectedValuesFromSelectEvent(e))}
-                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
-                    aria-label="Filter dashboard by RCA"
-                  >
-                    {dashboardRcaOptions.map((r) => (
-                      <option key={r} value={r}>
-                        {r.length > 56 ? `${r.slice(0, 54)}…` : r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                    Scope filters
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Narrow the dashboard to selected zones, PODs, and RCA text. Unticked = all.
+                  </p>
+                </div>
               </div>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Tip: hold Ctrl/Cmd to choose multiple values. No selection means all values.
-              </p>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Zone
+                  </span>
+                  <MultiSelectDropdownFilter
+                    label="Zone"
+                    options={dashboardZoneOptions}
+                    selected={dashZoneFilter}
+                    setSelected={setDashZoneFilter}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    POD
+                  </span>
+                  <MultiSelectDropdownFilter
+                    label="POD"
+                    options={dashboardPodOptions}
+                    selected={dashPodFilter}
+                    setSelected={setDashPodFilter}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    RCA
+                  </span>
+                  <MultiSelectDropdownFilter
+                    label="RCA"
+                    options={dashboardRcaOptions}
+                    selected={dashRcaFilter}
+                    setSelected={setDashRcaFilter}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

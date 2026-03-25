@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { getRcaValue } from "./lib/columns.js";
 import { ISSUE_KIND_LABELS } from "./lib/analytics.js";
 import { downloadCsv } from "./lib/csvExport.js";
+import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 
 export const DATA_TABLE_PAGE_SIZE = 100;
 
@@ -120,11 +121,6 @@ export function DataTableTab({
   const rangeStart = filteredRows.length === 0 ? 0 : page * DATA_TABLE_PAGE_SIZE + 1;
   const rangeEnd = Math.min((page + 1) * DATA_TABLE_PAGE_SIZE, filteredRows.length);
 
-  const selectClass =
-    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-sfx dark:focus:ring-sfx/25";
-
-  const getSelected = (event) => Array.from(event.target.selectedOptions, (opt) => opt.value);
-
   const exportRow = (r) => {
     downloadCsv("data-table-row.csv", stripExportRows([r], exportFields), exportFields);
   };
@@ -164,62 +160,45 @@ export function DataTableTab({
             aria-label="Search manifests and hubs"
           />
         </div>
-        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 sm:flex sm:flex-wrap">
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">Zone</span>
-            <select
-              multiple
-              value={zoneFilter}
-              onChange={(e) => setZoneFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by zone"
-            >
-              {zoneOptions.map((z) => (
-                <option key={z} value={z}>
-                  {z}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">RCA</span>
-            <select
-              multiple
-              value={rcaFilter}
-              onChange={(e) => setRcaFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by RCA"
-            >
-              {rcaOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r.length > 56 ? `${r.slice(0, 54)}…` : r}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span className="text-slate-600 dark:text-slate-400">Category</span>
-            <select
-              multiple
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(getSelected(e))}
-              className={selectClass}
-              aria-label="Filter by category"
-            >
-              {categoryKinds.map((k) => (
-                <option key={k} value={k}>
-                  {ISSUE_KIND_LABELS[k] ?? k}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end lg:max-w-4xl lg:shrink-0">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Zone
+            </span>
+            <MultiSelectDropdownFilter
+              label="Zone"
+              options={zoneOptions}
+              selected={zoneFilter}
+              setSelected={setZoneFilter}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              RCA
+            </span>
+            <MultiSelectDropdownFilter
+              label="RCA"
+              options={rcaOptions}
+              selected={rcaFilter}
+              setSelected={setRcaFilter}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Category
+            </span>
+            <MultiSelectDropdownFilter
+              label="Category"
+              options={categoryKinds}
+              selected={categoryFilter}
+              setSelected={setCategoryFilter}
+              formatLabel={(k) => ISSUE_KIND_LABELS[k] ?? k}
+            />
+          </div>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark">
-        <p className="px-3 pt-3 text-[11px] text-slate-500 dark:text-slate-400 sm:px-4">
-          Tip: hold Ctrl/Cmd to select multiple values. No selection means all values.
-        </p>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs text-slate-800 dark:text-slate-200 sm:text-sm">
             <thead>
