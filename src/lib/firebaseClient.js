@@ -10,6 +10,31 @@ const appId = import.meta.env.VITE_FIREBASE_APP_ID;
 
 const SHADOWFAX_EMAIL_SUFFIX = "@shadowfax.in";
 
+/** Only these signed-in users may use the CSV upload control when Shadowfax auth is enforced. */
+const CSV_UPLOAD_ALLOWLIST = new Set(
+  [
+    "arunesh.kumar@shadowfax.in",
+    "trupti.pali@shadowfax.in",
+    "cctv.issues@shadowfax.in",
+    "mohammad.alam@shadowfax.in",
+  ].map((e) => e.toLowerCase())
+);
+
+export function isCsvUploadAllowlistedEmail(email) {
+  if (!email || typeof email !== "string") return false;
+  return CSV_UPLOAD_ALLOWLIST.has(email.trim().toLowerCase());
+}
+
+/**
+ * Manual CSV uploads (file picker). Cloud snapshot restore is separate.
+ * Local dev and builds without the Shadowfax gate stay unrestricted.
+ */
+export function canUploadCsv(resolvedEmail) {
+  if (import.meta.env.DEV) return true;
+  if (!requiresShadowfaxGate()) return true;
+  return isCsvUploadAllowlistedEmail(resolvedEmail);
+}
+
 /** When true, app shows sign-in and only @shadowfax.in users may use the dashboard. */
 export function requiresShadowfaxGate() {
   if (import.meta.env.DEV) return false;

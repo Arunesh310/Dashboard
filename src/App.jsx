@@ -38,7 +38,11 @@ import {
   rowsMatchingRcaAggregateKey,
 } from "./lib/analytics.js";
 import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
-import { getFirebaseAuth, isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
+import {
+  canUploadCsv,
+  getFirebaseAuth,
+  isCloudSnapshotConfigured,
+} from "./lib/firebaseClient.js";
 import { onAuthStateChanged } from "firebase/auth";
 import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
 import { DataTableTab } from "./DataTableTab.jsx";
@@ -602,6 +606,10 @@ function useScrollHideHeader(activeTab) {
 export default function App() {
   const { isDark } = useTheme();
   const shadowfaxSession = useShadowfaxSession();
+  const canUploadCsvFiles = useMemo(
+    () => canUploadCsv(shadowfaxSession?.email ?? null),
+    [shadowfaxSession?.email]
+  );
   const [fileName, setFileName] = useState("");
   const [fields, setFields] = useState([]);
   /** Same reference as `fields`; kept for CSV export columns and declared early to avoid TDZ in hooks below. */
@@ -1355,6 +1363,10 @@ export default function App() {
 
   const handleCameraStatusFile = useCallback(
     (file) => {
+      if (!canUploadCsv(shadowfaxSession?.email ?? null)) {
+        setCameraStatusError("You do not have permission to upload files.");
+        return;
+      }
       if (!file?.name?.toLowerCase().endsWith(".csv")) {
         setCameraStatusError("Please upload a .csv file.");
         return;
@@ -1409,7 +1421,7 @@ export default function App() {
       };
       reader.readAsText(file);
     },
-    [applyCameraParseResult]
+    [applyCameraParseResult, shadowfaxSession?.email]
   );
 
   const handleCameraDetailDownload = useCallback(() => {
@@ -1444,6 +1456,10 @@ export default function App() {
 
   const handleFile = useCallback(
     (file) => {
+      if (!canUploadCsv(shadowfaxSession?.email ?? null)) {
+        setError("You do not have permission to upload files.");
+        return;
+      }
       if (!file?.name?.toLowerCase().endsWith(".csv")) {
         setError("Please upload a .csv file.");
         return;
@@ -1498,7 +1514,7 @@ export default function App() {
       };
       reader.readAsText(file);
     },
-    [ingestParsed]
+    [ingestParsed, shadowfaxSession?.email]
   );
 
   const pillCount = (id) => {
@@ -1721,25 +1737,27 @@ export default function App() {
               </div>
             </nav>
             <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-1.5 xs:w-auto xs:justify-end sm:gap-2">
-            <label
-              className="btn-header-icon cursor-pointer"
-              title={activeTab === "camera" ? "Upload camera status CSV" : "Upload CSV"}
-            >
-              <UploadIcon />
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="sr-only"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) {
-                    if (activeTab === "camera") handleCameraStatusFile(f);
-                    else handleFile(f);
-                  }
-                  e.target.value = "";
-                }}
-              />
-            </label>
+            {canUploadCsvFiles ? (
+              <label
+                className="btn-header-icon cursor-pointer"
+                title={activeTab === "camera" ? "Upload camera status CSV" : "Upload CSV"}
+              >
+                <UploadIcon />
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      if (activeTab === "camera") handleCameraStatusFile(f);
+                      else handleFile(f);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            ) : null}
             <ThemeToggle />
             {shadowfaxSession ? (
               <button
