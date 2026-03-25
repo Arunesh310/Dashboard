@@ -51,7 +51,11 @@
 
   /** Dashboard scope filters — match surface-card / header button language */
   .filter-dropdown {
-    @apply relative min-w-0;
+    @apply relative min-w-0 z-[1];
+  }
+
+  .filter-dropdown[open] {
+    z-index: 80;
   }
 
   .filter-dropdown-summary {
@@ -79,7 +83,7 @@
   }
 
   .filter-dropdown-panel {
-    @apply absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-card-dark;
+    @apply absolute left-0 right-0 z-[90] mt-2 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-card-dark;
   }
 
   .filter-dropdown-option {
