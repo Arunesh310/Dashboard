@@ -70,6 +70,18 @@ function stripExportRows(rows, fields) {
   });
 }
 
+/** Order-independent equality for multi-select filter arrays. */
+function sameSelection(a, b) {
+  if (a === b) return true;
+  const la = a?.length ?? 0;
+  const lb = b?.length ?? 0;
+  if (la !== lb) return false;
+  if (la === 0) return true;
+  const sa = [...a].map(String).sort();
+  const sb = [...b].map(String).sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
 function CameraIcon({ className = "h-5 w-5" }) {
   return (
     <svg
