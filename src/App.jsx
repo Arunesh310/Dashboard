@@ -44,12 +44,26 @@ import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnaps
 import { DataTableTab } from "./DataTableTab.jsx";
 import { CameraStatusTab } from "./CameraStatusTab.jsx";
 import {
+  aggregateZone,
   buildCameraStatusRows,
   detectCameraStatusColumns,
   filterCameraStatusRows,
   rowsToDetailExport,
+  summarizeCameras,
   CAMERA_DETAIL_FIELDS,
 } from "./lib/cameraStatus.js";
+import {
+  evaluateCameraAlerts,
+  evaluateDashboardAlerts,
+  loadAlertThresholds,
+} from "./lib/alertThresholds.js";
+import {
+  cameraConnectivityIndex,
+  diffCameraConnectivityMaps,
+  diffDashboardManifestMaps,
+  manifestZoneMapFromDashboardRows,
+} from "./lib/uploadDiff.js";
+import { InsightsBar } from "./InsightsBar.jsx";
 
 ChartJS.register(
   CategoryScale,
@@ -639,8 +653,13 @@ export default function App() {
   const [uploadPipelineBusy, setUploadPipelineBusy] = useState(false);
   const [uploadPipelineTarget, setUploadPipelineTarget] = useState(null);
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
+  const [alertThresholds, setAlertThresholds] = useState(() => loadAlertThresholds());
+  const [dashboardUploadDiff, setDashboardUploadDiff] = useState(null);
+  const [cameraUploadDiff, setCameraUploadDiff] = useState(null);
   const exportRootRef = useRef(null);
   const cameraStatusPdfRef = useRef(null);
+  const dashboardManifestRef = useRef(null);
+  const cameraConnectivityRef = useRef(null);
   const { headerRef, headerHeight, headerHidden } = useScrollHideHeader(activeTab);
 
   const cameraZoneOptions = useMemo(() => {
@@ -749,6 +768,22 @@ export default function App() {
   );
 
   const counts = useMemo(() => countByKind(annotated), [annotated]);
+
+  const cameraZoneAggFull = useMemo(() => aggregateZone(cameraStatusRows), [cameraStatusRows]);
+  const cameraKpisFull = useMemo(() => summarizeCameras(cameraStatusRows), [cameraStatusRows]);
+
+  const dashboardAlertsList = useMemo(
+    () => (annotated.length ? evaluateDashboardAlerts(counts, alertThresholds) : []),
+    [annotated, counts, alertThresholds]
+  );
+
+  const cameraAlertsList = useMemo(
+    () =>
+      cameraStatusRows.length
+        ? evaluateCameraAlerts(cameraZoneAggFull, cameraKpisFull, alertThresholds)
+        : [],
+    [cameraStatusRows, cameraZoneAggFull, cameraKpisFull, alertThresholds]
+  );
 
   const uniqueManifestCount = useMemo(() => {
     const manifestCol = colMapSafe.manifest;
@@ -1096,6 +1131,11 @@ export default function App() {
       setError("No data rows in file.");
       return;
     }
+    const nextMap = manifestZoneMapFromDashboardRows(data, f);
+    const prevMap = dashboardManifestRef.current;
+    setDashboardUploadDiff(diffDashboardManifestMaps(prevMap, nextMap));
+    dashboardManifestRef.current = nextMap;
+
     setFields(f);
     setColMap(detectColumns(f));
     setRows(data);
@@ -1125,6 +1165,10 @@ export default function App() {
       );
       return false;
     }
+    const nextIdx = cameraConnectivityIndex(rows);
+    const prevIdx = cameraConnectivityRef.current;
+    setCameraUploadDiff(diffCameraConnectivityMaps(prevIdx, nextIdx));
+    cameraConnectivityRef.current = nextIdx;
     setCameraStatusRows(rows);
     setCameraStatusFileName(fileName);
     setCameraStatusUpdatedAt(updatedAtIso);
@@ -1233,6 +1277,8 @@ export default function App() {
   }, [ingestParsed, applyCameraParseResult]);
 
   const handleReset = useCallback(() => {
+    dashboardManifestRef.current = null;
+    setDashboardUploadDiff(null);
     setRows([]);
     setFields([]);
     setColMap(null);
@@ -1248,6 +1294,8 @@ export default function App() {
   }, []);
 
   const resetCameraStatus = useCallback(() => {
+    cameraConnectivityRef.current = null;
+    setCameraUploadDiff(null);
     setCameraStatusRows([]);
     setCameraStatusFileName("");
     setCameraStatusUpdatedAt(null);
@@ -1811,6 +1859,16 @@ export default function App() {
             {activeTab === "camera" ? cameraStatusError : error}
           </div>
         ) : null}
+        <InsightsBar
+          dashboardAlerts={dashboardAlertsList}
+          cameraAlerts={cameraAlertsList}
+          thresholds={alertThresholds}
+          onThresholdsChange={setAlertThresholds}
+          dashboardDiff={dashboardUploadDiff}
+          cameraDiff={cameraUploadDiff}
+          onDismissDashboardDiff={() => setDashboardUploadDiff(null)}
+          onDismissCameraDiff={() => setCameraUploadDiff(null)}
+        />
       </header>
 
       <main
