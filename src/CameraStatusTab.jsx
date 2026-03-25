@@ -465,7 +465,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
   return (
     <div ref={ref} className="space-y-4 sm:space-y-5">
-      <div className="surface-card">
+      <div className="surface-card filter-shell">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Filters</h2>
           <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">

@@ -2100,17 +2100,10 @@ export default function App() {
               </div>
             </div>
 
-            <div className="surface-card">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                    Scope filters
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Narrow the dashboard to selected zones, PODs, and RCA text. Unticked = all.
-                  </p>
-                </div>
-              </div>
+            <div className="surface-card filter-shell">
+              <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                Scope filters
+              </h3>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

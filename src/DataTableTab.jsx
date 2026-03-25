@@ -135,7 +135,7 @@ export function DataTableTab({
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 px-3 pb-20 pt-4 sm:px-5 sm:pb-16 sm:pt-6 md:px-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+      <div className="filter-shell flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="relative min-w-0 flex-1">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"

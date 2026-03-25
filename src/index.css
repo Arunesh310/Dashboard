@@ -49,6 +49,15 @@
     @apply rounded-xl border border-sfx/10 bg-sfx-soft/50 transition-[border-color,background-color,box-shadow] duration-300 ease-sfx-smooth dark:border-slate-700/40 dark:bg-slate-800/40 motion-safe:hover:border-sfx/25 dark:motion-safe:hover:border-slate-600/60;
   }
 
+  /**
+   * Lift the whole filter row above following content so absolutely-positioned
+   * dropdown panels are not painted under later siblings (KPI cards, tables, etc.).
+   * Stays below the app header (z-50).
+   */
+  .filter-shell {
+    @apply relative z-40 overflow-visible;
+  }
+
   /** Dashboard scope filters — match surface-card / header button language */
   .filter-dropdown {
     @apply relative min-w-0 z-[1];
