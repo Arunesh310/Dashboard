@@ -528,25 +528,30 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           role="region"
           aria-label="Attention summary"
         >
-          <div className="p-4 pb-0">
+          <div className="border-b border-amber-200/50 p-4 pb-3 dark:border-amber-900/40">
             <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200/90">
               Attention needed
             </p>
-            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+            <p className="mt-1 text-sm leading-snug text-slate-700 dark:text-slate-300">
               Worst offline % by zone and POD (≥3 cameras), plus Not centralized in the current view.
             </p>
           </div>
-          <div className="grid gap-4 p-4 pt-3 sm:grid-cols-3">
+          <div className="grid gap-5 p-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-amber-200/60 dark:sm:divide-amber-800/40">
             {attentionStrip.worstZones.length ? (
-              <div>
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <div className="min-w-0 sm:pr-5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Worst zones (offline %)
                 </p>
-                <ul className="mt-2 space-y-1.5 text-sm text-slate-900 dark:text-slate-100">
+                <ul className="mt-2.5 space-y-0 rounded-lg border border-amber-200/40 bg-white/50 text-sm dark:border-amber-900/35 dark:bg-slate-950/40">
                   {attentionStrip.worstZones.map((z) => (
-                    <li key={z.zone} className="flex justify-between gap-2 tabular-nums">
-                      <span className="min-w-0 truncate font-medium">{z.zone}</span>
-                      <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                    <li
+                      key={z.zone}
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-x-2 border-b border-amber-200/30 px-2.5 py-2 last:border-b-0 dark:border-amber-900/25"
+                    >
+                      <span className="min-w-0 truncate font-medium leading-tight text-slate-900 dark:text-slate-100" title={z.zone}>
+                        {z.zone}
+                      </span>
+                      <span className="text-right text-sm font-semibold tabular-nums tracking-tight text-red-600 dark:text-red-400">
                         {z.offlinePct.toFixed(1)}%
                       </span>
                     </li>
@@ -555,15 +560,20 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               </div>
             ) : null}
             {attentionStrip.worstPods.length ? (
-              <div>
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <div className="min-w-0 sm:px-5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Worst PODs (offline %)
                 </p>
-                <ul className="mt-2 space-y-1.5 text-sm text-slate-900 dark:text-slate-100">
+                <ul className="mt-2.5 space-y-0 rounded-lg border border-amber-200/40 bg-white/50 text-sm dark:border-amber-900/35 dark:bg-slate-950/40">
                   {attentionStrip.worstPods.map((p) => (
-                    <li key={p.pod} className="flex justify-between gap-2 tabular-nums">
-                      <span className="min-w-0 truncate font-medium">{p.pod}</span>
-                      <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                    <li
+                      key={p.pod}
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem] items-center gap-x-2 border-b border-amber-200/30 px-2.5 py-2 last:border-b-0 dark:border-amber-900/25"
+                    >
+                      <span className="min-w-0 truncate font-medium leading-tight text-slate-900 dark:text-slate-100" title={p.pod}>
+                        {p.pod}
+                      </span>
+                      <span className="text-right text-sm font-semibold tabular-nums tracking-tight text-red-600 dark:text-red-400">
                         {p.pct.toFixed(1)}%
                       </span>
                     </li>
@@ -572,14 +582,16 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
               </div>
             ) : null}
             {attentionStrip.notCentralized > 0 ? (
-              <div>
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <div className="min-w-0 sm:pl-5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Not centralized
                 </p>
-                <p className="mt-2 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
-                  {attentionStrip.notCentralized.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">in current view</p>
+                <div className="mt-2.5 rounded-lg border border-amber-200/40 bg-white/50 px-3 py-3 dark:border-amber-900/35 dark:bg-slate-950/40">
+                  <p className="text-2xl font-bold tabular-nums leading-none text-amber-700 dark:text-amber-300">
+                    {attentionStrip.notCentralized.toLocaleString()}
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-tight text-slate-600 dark:text-slate-400">in current view</p>
+                </div>
               </div>
             ) : null}
           </div>
