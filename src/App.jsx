@@ -295,6 +295,30 @@ function issueSlice(allRows, pill, issueKind) {
   return [];
 }
 
+/** Zone / POD / RCA scope only (used for pill counts and alert strips). */
+function applyScopeFilters(rows, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter) {
+  const zoneSet = new Set(dashZoneFilter);
+  const podSet = new Set(dashPodFilter);
+  const rcaSet = new Set(dashRcaFilter);
+  const z = colMapSafe.zone;
+  const p = colMapSafe.pod ?? colMapSafe.poc;
+  return rows.filter((r) => {
+    if (zoneSet.size > 0) {
+      const zone = z ? canonicalizeZoneLabel(String(r[z] ?? "").trim()) : "";
+      if (!zoneSet.has(zone)) return false;
+    }
+    if (podSet.size > 0) {
+      const pod = p ? String(r[p] ?? "").trim() : "";
+      if (!podSet.has(pod)) return false;
+    }
+    if (rcaSet.size > 0) {
+      const rv = getRcaValue(r, colMapSafe, fields).trim();
+      if (!rcaSet.has(rv)) return false;
+    }
+    return true;
+  });
+}
+
 const UI_STORAGE_KEY = "data-visual-ui-v1";
 
 function readStoredUi() {
@@ -853,59 +877,55 @@ export default function App() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [annotated, colMapSafe, fields]);
 
+  const scopeFilteredRows = useMemo(
+    () =>
+      applyScopeFilters(annotated, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter),
+    [annotated, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter]
+  );
+
   const filtered = useMemo(() => {
     const issueFiltered = applyFilter(annotated, filter);
-    const zoneSet = new Set(dashZoneFilter);
-    const podSet = new Set(dashPodFilter);
-    const rcaSet = new Set(dashRcaFilter);
-    const z = colMapSafe.zone;
-    const p = colMapSafe.pod ?? colMapSafe.poc;
-    return issueFiltered.filter((r) => {
-      if (zoneSet.size > 0) {
-        const zone = z ? canonicalizeZoneLabel(String(r[z] ?? "").trim()) : "";
-        if (!zoneSet.has(zone)) return false;
-      }
-      if (podSet.size > 0) {
-        const pod = p ? String(r[p] ?? "").trim() : "";
-        if (!podSet.has(pod)) return false;
-      }
-      if (rcaSet.size > 0) {
-        const rv = getRcaValue(r, colMapSafe, fields).trim();
-        if (!rcaSet.has(rv)) return false;
-      }
-      return true;
-    });
-  }, [annotated, filter, dashZoneFilter, dashPodFilter, dashRcaFilter, colMapSafe, fields]);
+    return applyScopeFilters(
+      issueFiltered,
+      colMapSafe,
+      fields,
+      dashZoneFilter,
+      dashPodFilter,
+      dashRcaFilter
+    );
+  }, [annotated, filter, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter]);
 
-  const counts = useMemo(() => countByKind(annotated), [annotated]);
+  const countsFiltered = useMemo(() => countByKind(filtered), [filtered]);
 
-  const uniqueManifestCount = useMemo(() => {
+  const countsScope = useMemo(() => countByKind(scopeFilteredRows), [scopeFilteredRows]);
+
+  const uniqueManifestCountFiltered = useMemo(() => {
     const manifestCol = colMapSafe.manifest;
     if (!manifestCol) return null;
     const manifests = new Set();
-    for (const r of annotated) {
+    for (const r of filtered) {
       const code = String(r[manifestCol] ?? "").trim();
       if (code) manifests.add(code);
     }
     return manifests.size;
-  }, [annotated, colMapSafe.manifest]);
+  }, [filtered, colMapSafe.manifest]);
 
   const kpis = useMemo(() => {
-    const total = uniqueManifestCount ?? annotated.length;
-    const proper = counts.proper_bagging;
-    const partial = counts.partial_bagging;
-    const fraud = counts.lm_fraud;
-    const camera = counts.camera_issues;
-    const noFootage = counts.no_footage;
+    const total = uniqueManifestCountFiltered ?? filtered.length;
+    const proper = countsFiltered.proper_bagging;
+    const partial = countsFiltered.partial_bagging;
+    const fraud = countsFiltered.lm_fraud;
+    const camera = countsFiltered.camera_issues;
+    const noFootage = countsFiltered.no_footage;
     const issueLike =
       partial +
       fraud +
       camera +
       noFootage +
-      counts.offline +
-      counts.multiple_bagging +
-      counts.unable_to_validate +
-      counts.other;
+      countsFiltered.offline +
+      countsFiltered.multiple_bagging +
+      countsFiltered.unable_to_validate +
+      countsFiltered.other;
     return {
       total,
       proper,
@@ -917,7 +937,15 @@ export default function App() {
       properRate: total ? ((proper / total) * 100).toFixed(1) : "0",
       issueRate: total ? ((issueLike / total) * 100).toFixed(1) : "0",
     };
-  }, [annotated, counts, uniqueManifestCount]);
+  }, [filtered, countsFiltered, uniqueManifestCountFiltered]);
+
+  const pillCount = useCallback(
+    (id) => {
+      if (id === "all") return scopeFilteredRows.length;
+      return scopeFilteredRows.filter((r) => r.__kind === id).length;
+    },
+    [scopeFilteredRows]
+  );
 
   const weeklyWeekKeys = useMemo(() => {
     const dc = colMapSafe.date;
@@ -1021,31 +1049,31 @@ export default function App() {
   const partialHub = useMemo(
     () =>
       aggregateByField(
-        issueSlice(annotated, filter, "partial_bagging"),
+        issueSlice(filtered, "all", "partial_bagging"),
         colMapSafe.hub,
         10
       ),
-    [annotated, filter, colMapSafe.hub]
+    [filtered, colMapSafe.hub]
   );
 
   const fraudHub = useMemo(
     () =>
       aggregateByField(
-        issueSlice(annotated, filter, "lm_fraud"),
+        issueSlice(filtered, "all", "lm_fraud"),
         colMapSafe.hub,
         10
       ),
-    [annotated, filter, colMapSafe.hub]
+    [filtered, colMapSafe.hub]
   );
 
   const cameraHub = useMemo(
     () =>
       aggregateByField(
-        issueSlice(annotated, filter, "camera_issues"),
+        issueSlice(filtered, "all", "camera_issues"),
         colMapSafe.hub,
         10
       ),
-    [annotated, filter, colMapSafe.hub]
+    [filtered, colMapSafe.hub]
   );
 
   const recentIssuesSorted = useMemo(() => {
@@ -1624,11 +1652,6 @@ export default function App() {
     [ingestParsed, shadowfaxSession?.email]
   );
 
-  const pillCount = (id) => {
-    if (id === "all") return annotated.length;
-    return annotated.filter((r) => r.__kind === id).length;
-  };
-
   const headerStatusLine = useMemo(() => {
     if (pdfExporting) return "Building PDF…";
     if (!isCloudSnapshotConfigured()) {
@@ -2049,27 +2072,27 @@ export default function App() {
                         onClick={() =>
                           downloadCsv(
                             dashCsvName("lm-fraud-rows"),
-                            stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
+                            stripExportRows(issueSlice(scopeFilteredRows, "all", "lm_fraud"), exportFields),
                             exportFields
                           )
                         }
                         className="font-semibold tabular-nums text-red-900 underline decoration-red-800/40 decoration-dotted underline-offset-2 hover:text-red-950 dark:text-red-100 dark:decoration-red-300/50 dark:hover:text-red-50"
                         title="Download LM fraud rows only"
                       >
-                        {counts.lm_fraud}
+                        {countsScope.lm_fraud}
                       </button>{" "}
-                      cases in file
+                      in current scope
                     </p>
                   </div>
                 </div>
                 <DownloadBtn
-                  count={issueSlice(annotated, "all", "lm_fraud").length}
+                  count={issueSlice(scopeFilteredRows, "all", "lm_fraud").length}
                   label="Download LM fraud rows"
                   variant="red"
                   onClickSlice={() =>
                     downloadCsv(
                       dashCsvName("lm-fraud-rows"),
-                      stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
+                      stripExportRows(issueSlice(scopeFilteredRows, "all", "lm_fraud"), exportFields),
                       exportFields
                     )
                   }
@@ -2089,7 +2112,7 @@ export default function App() {
                           downloadCsv(
                             dashCsvName("partial-bagging-rows"),
                             stripExportRows(
-                              issueSlice(annotated, "all", "partial_bagging"),
+                              issueSlice(scopeFilteredRows, "all", "partial_bagging"),
                               exportFields
                             ),
                             exportFields
@@ -2098,20 +2121,20 @@ export default function App() {
                         className="font-semibold tabular-nums text-amber-950 underline decoration-amber-800/40 decoration-dotted underline-offset-2 hover:text-amber-900 dark:text-amber-100 dark:decoration-amber-300/50 dark:hover:text-amber-50"
                         title="Download partial bagging rows only"
                       >
-                        {counts.partial_bagging}
+                        {countsScope.partial_bagging}
                       </button>{" "}
-                      cases in file
+                      in current scope
                     </p>
                   </div>
                 </div>
                 <DownloadBtn
-                  count={issueSlice(annotated, "all", "partial_bagging").length}
+                  count={issueSlice(scopeFilteredRows, "all", "partial_bagging").length}
                   label="Download partial bagging rows"
                   variant="amber"
                   onClickSlice={() =>
                     downloadCsv(
                       dashCsvName("partial-bagging-rows"),
-                      stripExportRows(issueSlice(annotated, "all", "partial_bagging"), exportFields),
+                      stripExportRows(issueSlice(scopeFilteredRows, "all", "partial_bagging"), exportFields),
                       exportFields
                     )
                   }
@@ -2192,7 +2215,7 @@ export default function App() {
                         onClick={() =>
                           downloadCsv(
                             dashCsvName(`${p.id}-filter`),
-                            stripExportRows(applyFilter(annotated, p.id), exportFields),
+                            stripExportRows(applyFilter(scopeFilteredRows, p.id), exportFields),
                             exportFields
                           )
                         }
@@ -2210,7 +2233,7 @@ export default function App() {
                       onClickSlice={() =>
                         downloadCsv(
                           dashCsvName(`${p.id}-filter`),
-                          stripExportRows(applyFilter(annotated, p.id), exportFields),
+                          stripExportRows(applyFilter(scopeFilteredRows, p.id), exportFields),
                           exportFields
                         )
                       }
@@ -2226,12 +2249,12 @@ export default function App() {
                   title: "Total Records",
                   value: kpis.total,
                   sub: colMapSafe.manifest
-                    ? `Unique ${colMapSafe.manifest} values`
-                    : "All loaded rows",
+                    ? `Unique ${colMapSafe.manifest} in current view`
+                    : "Rows in current view",
                   icon: "📊",
                   tone: "text-sfx dark:text-sfx-cta",
                   dl: () =>
-                    downloadCsv(dashCsvName("all-records"), stripExportRows(annotated, exportFields), exportFields),
+                    downloadCsv(dashCsvName("all-records"), stripExportRows(filtered, exportFields), exportFields),
                 },
                 {
                   title: "Proper Bagging",
@@ -2243,7 +2266,7 @@ export default function App() {
                     downloadCsv(
                       dashCsvName("proper-bagging"),
                       stripExportRows(
-                        annotated.filter((r) => r.__kind === "proper_bagging"),
+                        filtered.filter((r) => r.__kind === "proper_bagging"),
                         exportFields
                       ),
                       exportFields
@@ -2259,7 +2282,7 @@ export default function App() {
                     downloadCsv(
                       dashCsvName("partial-bagging-kpi"),
                       stripExportRows(
-                        annotated.filter((r) => r.__kind === "partial_bagging"),
+                        filtered.filter((r) => r.__kind === "partial_bagging"),
                         exportFields
                       ),
                       exportFields
@@ -2275,7 +2298,7 @@ export default function App() {
                     downloadCsv(
                       dashCsvName("lm-fraud-kpi"),
                       stripExportRows(
-                        annotated.filter((r) => r.__kind === "lm_fraud"),
+                        filtered.filter((r) => r.__kind === "lm_fraud"),
                         exportFields
                       ),
                       exportFields
@@ -2291,7 +2314,7 @@ export default function App() {
                     downloadCsv(
                       dashCsvName("camera-issues"),
                       stripExportRows(
-                        annotated.filter((r) => r.__kind === "camera_issues"),
+                        filtered.filter((r) => r.__kind === "camera_issues"),
                         exportFields
                       ),
                       exportFields
@@ -2307,7 +2330,7 @@ export default function App() {
                     downloadCsv(
                       dashCsvName("total-issues"),
                       stripExportRows(
-                        annotated.filter((r) =>
+                        filtered.filter((r) =>
                           [
                             "partial_bagging",
                             "lm_fraud",
@@ -3006,7 +3029,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("partial-bagging-by-hub-rows"),
                     stripExportRows(
-                      issueSlice(annotated, filter, "partial_bagging"),
+                      issueSlice(filtered, "all", "partial_bagging"),
                       exportFields
                     ),
                     exportFields
@@ -3017,7 +3040,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("partial-bagging-hub", hub),
                     stripExportRows(
-                      issueSlice(annotated, filter, "partial_bagging").filter(
+                      issueSlice(filtered, "all", "partial_bagging").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
                       ),
                       exportFields
@@ -3025,7 +3048,7 @@ export default function App() {
                     exportFields
                   );
                 }}
-                rowCount={issueSlice(annotated, filter, "partial_bagging").length}
+                rowCount={issueSlice(filtered, "all", "partial_bagging").length}
               />
               <ChartCard
                 title="LM Fraud by Hub"
@@ -3040,7 +3063,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("lm-fraud-by-hub-rows"),
                     stripExportRows(
-                      issueSlice(annotated, filter, "lm_fraud"),
+                      issueSlice(filtered, "all", "lm_fraud"),
                       exportFields
                     ),
                     exportFields
@@ -3051,7 +3074,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("lm-fraud-hub", hub),
                     stripExportRows(
-                      issueSlice(annotated, filter, "lm_fraud").filter(
+                      issueSlice(filtered, "all", "lm_fraud").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
                       ),
                       exportFields
@@ -3059,7 +3082,7 @@ export default function App() {
                     exportFields
                   );
                 }}
-                rowCount={issueSlice(annotated, filter, "lm_fraud").length}
+                rowCount={issueSlice(filtered, "all", "lm_fraud").length}
               />
               <ChartCard
                 title="Camera Issues by Hub"
@@ -3074,7 +3097,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("camera-issues-by-hub-rows"),
                     stripExportRows(
-                      issueSlice(annotated, filter, "camera_issues"),
+                      issueSlice(filtered, "all", "camera_issues"),
                       exportFields
                     ),
                     exportFields
@@ -3085,7 +3108,7 @@ export default function App() {
                   downloadCsv(
                     dashCsvName("camera-issues-hub", hub),
                     stripExportRows(
-                      issueSlice(annotated, filter, "camera_issues").filter(
+                      issueSlice(filtered, "all", "camera_issues").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
                       ),
                       exportFields
@@ -3093,7 +3116,7 @@ export default function App() {
                     exportFields
                   );
                 }}
-                rowCount={issueSlice(annotated, filter, "camera_issues").length}
+                rowCount={issueSlice(filtered, "all", "camera_issues").length}
               />
             </div>
 
