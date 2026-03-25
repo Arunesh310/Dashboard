@@ -318,14 +318,6 @@ function normalizeStoredMulti(raw) {
   return [];
 }
 
-function sameSelection(a, b) {
-  if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-  const as = [...a].sort();
-  const bs = [...b].sort();
-  return as.every((v, i) => v === bs[i]);
-}
-
 function stripExportRows(rows, fields) {
   return rows.map((r) => {
     const o = {};
@@ -1146,21 +1138,6 @@ export default function App() {
     dataTableRca,
     dataTableCategory,
   ]);
-
-  const hasDashboardPendingFilters = useMemo(
-    () =>
-      !sameSelection(dashZoneDraft, dashZoneFilter) ||
-      !sameSelection(dashPodDraft, dashPodFilter) ||
-      !sameSelection(dashRcaDraft, dashRcaFilter),
-    [
-      dashZoneDraft,
-      dashZoneFilter,
-      dashPodDraft,
-      dashPodFilter,
-      dashRcaDraft,
-      dashRcaFilter,
-    ]
-  );
 
   const donutData = useMemo(() => {
     const labels = zonePairs.map(([l]) => l);
@@ -2156,6 +2133,8 @@ export default function App() {
                     options={dashboardZoneOptions}
                     selected={dashZoneDraft}
                     setSelected={setDashZoneDraft}
+                    applied={dashZoneFilter}
+                    onApply={(next) => setDashZoneFilter(next)}
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
@@ -2167,6 +2146,8 @@ export default function App() {
                     options={dashboardPodOptions}
                     selected={dashPodDraft}
                     setSelected={setDashPodDraft}
+                    applied={dashPodFilter}
+                    onApply={(next) => setDashPodFilter(next)}
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
@@ -2178,22 +2159,10 @@ export default function App() {
                     options={dashboardRcaOptions}
                     selected={dashRcaDraft}
                     setSelected={setDashRcaDraft}
+                    applied={dashRcaFilter}
+                    onApply={(next) => setDashRcaFilter(next)}
                   />
                 </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  disabled={!hasDashboardPendingFilters}
-                  onClick={() => {
-                    setDashZoneFilter(dashZoneDraft);
-                    setDashPodFilter(dashPodDraft);
-                    setDashRcaFilter(dashRcaDraft);
-                  }}
-                  className="btn-header-ghost px-4 py-2 text-xs sm:text-sm"
-                >
-                  Apply filters
-                </button>
               </div>
             </div>
 

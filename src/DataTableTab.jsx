@@ -6,14 +6,6 @@ import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 
 export const DATA_TABLE_PAGE_SIZE = 100;
 
-function sameSelection(a, b) {
-  if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-  const as = [...a].sort();
-  const bs = [...b].sort();
-  return as.every((v, i) => v === bs[i]);
-}
-
 function DownloadIcon({ className = "h-4 w-4" }) {
   return (
     <svg
@@ -194,6 +186,8 @@ export function DataTableTab({
               options={zoneOptions}
               selected={zoneDraft}
               setSelected={setZoneDraft}
+              applied={zoneFilter}
+              onApply={(next) => setZoneFilter(next)}
             />
           </div>
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -216,23 +210,11 @@ export function DataTableTab({
               options={categoryKinds}
               selected={categoryDraft}
               setSelected={setCategoryDraft}
+              applied={categoryFilter}
+              onApply={(next) => setCategoryFilter(next)}
               formatLabel={(k) => ISSUE_KIND_LABELS[k] ?? k}
             />
           </div>
-        </div>
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            disabled={!hasPendingFilters}
-            onClick={() => {
-              setZoneFilter(zoneDraft);
-              setRcaFilter(rcaDraft);
-              setCategoryFilter(categoryDraft);
-            }}
-            className="btn-header-ghost px-4 py-2 text-xs sm:text-sm"
-          >
-            Apply filters
-          </button>
         </div>
       </div>
 

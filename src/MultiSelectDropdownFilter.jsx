@@ -1,20 +1,32 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { normalizeMultiSelect, sameNormalizedSelection } from "./lib/filterMultiSelect.js";
 
 /**
  * Theme-aligned multi-select: button trigger + checkbox list (details/summary).
- * @param {{ label: string, options: string[], selected: string[], setSelected: (v: string[]) => void, formatLabel?: (opt: string) => string }} props
+ * @param {{ label: string, options: string[], selected: string[], setSelected: (v: string[]) => void, applied: string[], onApply: (next: string[]) => void, formatLabel?: (opt: string) => string }} props
  */
-export function MultiSelectDropdownFilter({ label, options, selected, setSelected, formatLabel }) {
+export function MultiSelectDropdownFilter({
+  label,
+  options,
+  selected,
+  setSelected,
+  applied,
+  onApply,
+  formatLabel,
+}) {
+  const rootRef = useRef(null);
+  const skipResetOnClose = useRef(false);
+
   const selectedSet = useMemo(() => new Set(selected), [selected]);
-  const selectedCount = selected.length;
-  const triggerText = selectedCount ? `${selectedCount} selected` : "All";
+  const effective = useMemo(() => normalizeMultiSelect(selected, options), [selected, options]);
+  const triggerText = effective.length === 0 ? "All" : `${effective.length} selected`;
   const show = (opt) => (formatLabel ? formatLabel(opt) : opt);
+
+  const canApply = options.length > 0 && !sameNormalizedSelection(selected, applied, options);
 
   useEffect(() => {
     const closeOpenDropdowns = () => {
-      document
-        .querySelectorAll("details.filter-dropdown[open]")
-        .forEach((el) => el.removeAttribute("open"));
+      document.querySelectorAll("details.filter-dropdown[open]").forEach((el) => el.removeAttribute("open"));
     };
     const onPointerDown = (event) => {
       const target = event.target;
@@ -35,8 +47,32 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
     };
   }, []);
 
+  const handleApply = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!canApply) return;
+    const next = normalizeMultiSelect(selected, options);
+    skipResetOnClose.current = true;
+    onApply(next);
+    setSelected(next);
+    rootRef.current?.removeAttribute("open");
+  };
+
   return (
-    <details className="filter-dropdown group h-full">
+    <details
+      ref={rootRef}
+      className="filter-dropdown group h-full"
+      onToggle={(e) => {
+        const el = e.currentTarget;
+        if (!el.open) {
+          if (skipResetOnClose.current) {
+            skipResetOnClose.current = false;
+            return;
+          }
+          setSelected(applied);
+        }
+      }}
+    >
       <summary className="filter-dropdown-summary">
         <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200">{triggerText}</span>
         <svg
@@ -59,6 +95,7 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
             type="button"
             onClick={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setSelected([]);
             }}
             className="rounded-lg px-2 py-1 text-xs font-semibold text-sfx transition-colors hover:bg-sfx-soft/80 hover:text-sfx-deep dark:text-sfx-cta dark:hover:bg-slate-700/80 dark:hover:text-sfx-cream"
@@ -69,7 +106,7 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
         <div className="max-h-56 overflow-y-auto overscroll-contain">
           {options.length ? (
             options.map((opt) => (
-              <label key={opt} className="filter-dropdown-option">
+              <label key={String(opt)} className="filter-dropdown-option">
                 <input
                   type="checkbox"
                   checked={selectedSet.has(opt)}
@@ -89,6 +126,16 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
           ) : (
             <p className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">No options available.</p>
           )}
+        </div>
+        <div className="filter-dropdown-footer">
+          <button
+            type="button"
+            disabled={!canApply}
+            onClick={handleApply}
+            className="filter-dropdown-apply"
+          >
+            Apply
+          </button>
         </div>
       </div>
     </details>

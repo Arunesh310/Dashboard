@@ -104,6 +104,14 @@
     pointer-events: auto;
   }
 
+  .filter-dropdown-footer {
+    @apply flex justify-end border-t border-slate-200/85 bg-slate-50/60 px-2 py-2 dark:border-slate-700/70 dark:bg-slate-800/40;
+  }
+
+  .filter-dropdown-apply {
+    @apply rounded-lg border border-sfx/35 bg-sfx px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-[transform,opacity,background-color,border-color] duration-200 ease-sfx-smooth hover:bg-sfx-deep disabled:pointer-events-none disabled:opacity-40 dark:border-sfx/50 dark:bg-sfx dark:hover:bg-sfx-deep dark:disabled:opacity-35 motion-safe:active:scale-[0.98];
+  }
+
   .filter-dropdown-option {
     @apply flex cursor-pointer items-start gap-2.5 border-b border-slate-100 px-3 py-2 text-sm text-slate-800 transition-colors last:border-b-0 hover:bg-sfx-soft/60 dark:border-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800/70;
   }
