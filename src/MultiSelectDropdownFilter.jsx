@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 /**
  * Theme-aligned multi-select: button trigger + checkbox list (details/summary).
@@ -9,6 +9,32 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
   const selectedCount = selected.length;
   const triggerText = selectedCount ? `${selectedCount} selected` : "All";
   const show = (opt) => (formatLabel ? formatLabel(opt) : opt);
+
+  useEffect(() => {
+    const closeOpenDropdowns = () => {
+      document
+        .querySelectorAll("details.filter-dropdown[open]")
+        .forEach((el) => el.removeAttribute("open"));
+    };
+    const onPointerDown = (event) => {
+      const target = event.target;
+      document.querySelectorAll("details.filter-dropdown[open]").forEach((el) => {
+        if (!(target instanceof Node) || !el.contains(target)) {
+          el.removeAttribute("open");
+        }
+      });
+    };
+    const onEscape = (event) => {
+      if (event.key === "Escape") closeOpenDropdowns();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, []);
+
   return (
     <details className="filter-dropdown group h-full">
       <summary className="filter-dropdown-summary">
@@ -24,7 +50,7 @@ export function MultiSelectDropdownFilter({ label, options, selected, setSelecte
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </summary>
-      <div className="filter-dropdown-panel motion-safe:animate-sfx-fade-in motion-reduce:animate-none">
+      <div className="filter-dropdown-panel">
         <div className="flex items-center justify-between gap-2 border-b border-slate-200/85 bg-slate-50/80 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-800/50">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
             {label}

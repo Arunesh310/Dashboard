@@ -318,6 +318,14 @@ function normalizeStoredMulti(raw) {
   return [];
 }
 
+function sameSelection(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const as = [...a].sort();
+  const bs = [...b].sort();
+  return as.every((v, i) => v === bs[i]);
+}
+
 function stripExportRows(rows, fields) {
   return rows.map((r) => {
     const o = {};
@@ -669,6 +677,15 @@ export default function App() {
   const [dashRcaFilter, setDashRcaFilter] = useState(() =>
     normalizeStoredMulti(readStoredUi()?.dashRcaFilter)
   );
+  const [dashZoneDraft, setDashZoneDraft] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashZoneFilter)
+  );
+  const [dashPodDraft, setDashPodDraft] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashPodFilter)
+  );
+  const [dashRcaDraft, setDashRcaDraft] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashRcaFilter)
+  );
   const [dataTablePage, setDataTablePage] = useState(0);
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -775,6 +792,16 @@ export default function App() {
   useEffect(() => {
     setDataTablePage(0);
   }, [dataTableSearch, dataTableZone, dataTableRca, dataTableCategory, fileName]);
+
+  useEffect(() => {
+    setDashZoneDraft(dashZoneFilter);
+  }, [dashZoneFilter]);
+  useEffect(() => {
+    setDashPodDraft(dashPodFilter);
+  }, [dashPodFilter]);
+  useEffect(() => {
+    setDashRcaDraft(dashRcaFilter);
+  }, [dashRcaFilter]);
 
   const colMapSafe = colMap ?? detectColumns(fields);
 
@@ -1119,6 +1146,21 @@ export default function App() {
     dataTableRca,
     dataTableCategory,
   ]);
+
+  const hasDashboardPendingFilters = useMemo(
+    () =>
+      !sameSelection(dashZoneDraft, dashZoneFilter) ||
+      !sameSelection(dashPodDraft, dashPodFilter) ||
+      !sameSelection(dashRcaDraft, dashRcaFilter),
+    [
+      dashZoneDraft,
+      dashZoneFilter,
+      dashPodDraft,
+      dashPodFilter,
+      dashRcaDraft,
+      dashRcaFilter,
+    ]
+  );
 
   const donutData = useMemo(() => {
     const labels = zonePairs.map(([l]) => l);
@@ -2112,8 +2154,8 @@ export default function App() {
                   <MultiSelectDropdownFilter
                     label="Zone"
                     options={dashboardZoneOptions}
-                    selected={dashZoneFilter}
-                    setSelected={setDashZoneFilter}
+                    selected={dashZoneDraft}
+                    setSelected={setDashZoneDraft}
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
@@ -2123,8 +2165,8 @@ export default function App() {
                   <MultiSelectDropdownFilter
                     label="POD"
                     options={dashboardPodOptions}
-                    selected={dashPodFilter}
-                    setSelected={setDashPodFilter}
+                    selected={dashPodDraft}
+                    setSelected={setDashPodDraft}
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
@@ -2134,10 +2176,24 @@ export default function App() {
                   <MultiSelectDropdownFilter
                     label="RCA"
                     options={dashboardRcaOptions}
-                    selected={dashRcaFilter}
-                    setSelected={setDashRcaFilter}
+                    selected={dashRcaDraft}
+                    setSelected={setDashRcaDraft}
                   />
                 </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!hasDashboardPendingFilters}
+                  onClick={() => {
+                    setDashZoneFilter(dashZoneDraft);
+                    setDashPodFilter(dashPodDraft);
+                    setDashRcaFilter(dashRcaDraft);
+                  }}
+                  className="btn-header-ghost px-4 py-2 text-xs sm:text-sm"
+                >
+                  Apply filters
+                </button>
               </div>
             </div>
 

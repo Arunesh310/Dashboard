@@ -92,7 +92,16 @@
   }
 
   .filter-dropdown-panel {
-    @apply absolute left-0 right-0 z-[90] mt-2 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-card-dark;
+    @apply absolute left-0 right-0 z-[90] mt-2 origin-top overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-card backdrop-blur-sm transition-[opacity,transform] duration-200 ease-sfx-smooth dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-card-dark motion-reduce:transition-none;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+    pointer-events: none;
+  }
+
+  details[open] > .filter-dropdown-panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
   }
 
   .filter-dropdown-option {

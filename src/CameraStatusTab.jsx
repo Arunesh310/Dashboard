@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useMemo } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useState } from "react";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { useTheme } from "./theme.jsx";
 import {
@@ -200,6 +200,14 @@ function filterLabel(v, allLabel = "All") {
   return v.join(" | ");
 }
 
+function sameSelection(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const as = [...a].sort();
+  const bs = [...b].sort();
+  return as.every((v, i) => v === bs[i]);
+}
+
 export const CameraStatusTab = forwardRef(function CameraStatusTab(
   {
     allRows,
@@ -217,6 +225,21 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   ref
 ) {
   const { isDark } = useTheme();
+  const [zoneDraft, setZoneDraft] = useState(zoneFilter);
+  const [podDraft, setPodDraft] = useState(podFilter);
+  const [statusDraft, setStatusDraft] = useState(statusFilter);
+
+  useEffect(() => setZoneDraft(zoneFilter), [zoneFilter]);
+  useEffect(() => setPodDraft(podFilter), [podFilter]);
+  useEffect(() => setStatusDraft(statusFilter), [statusFilter]);
+
+  const hasPendingFilters = useMemo(
+    () =>
+      !sameSelection(zoneDraft, zoneFilter) ||
+      !sameSelection(podDraft, podFilter) ||
+      !sameSelection(statusDraft, statusFilter),
+    [zoneDraft, zoneFilter, podDraft, podFilter, statusDraft, statusFilter]
+  );
 
   const filtered = useMemo(
     () =>
@@ -487,8 +510,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <MultiSelectDropdownFilter
               label="Zone"
               options={zoneOptions}
-              selected={zoneFilter}
-              setSelected={setZoneFilter}
+              selected={zoneDraft}
+              setSelected={setZoneDraft}
               formatLabel={(z) => z || "—"}
             />
           </div>
@@ -499,8 +522,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <MultiSelectDropdownFilter
               label="POD"
               options={podOptions}
-              selected={podFilter}
-              setSelected={setPodFilter}
+              selected={podDraft}
+              setSelected={setPodDraft}
               formatLabel={(p) => p || "—"}
             />
           </div>
@@ -511,11 +534,25 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             <MultiSelectDropdownFilter
               label="Status"
               options={statusOptions}
-              selected={statusFilter}
-              setSelected={setStatusFilter}
+              selected={statusDraft}
+              setSelected={setStatusDraft}
               formatLabel={formatStatusLabel}
             />
           </div>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            disabled={!hasPendingFilters}
+            onClick={() => {
+              setZoneFilter(zoneDraft);
+              setPodFilter(podDraft);
+              setStatusFilter(statusDraft);
+            }}
+            className="btn-header-ghost px-4 py-2 text-xs sm:text-sm"
+          >
+            Apply filters
+          </button>
         </div>
       </div>
 
