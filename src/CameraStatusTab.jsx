@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useCallback, useMemo } from "react";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { useTheme } from "./theme.jsx";
 import {
@@ -10,7 +10,7 @@ import {
   rcaAllBreakdown,
   summarizeCameras,
 } from "./lib/cameraStatus.js";
-import { downloadCsv, shortCount } from "./lib/csvExport.js";
+import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
 
 function DownloadIcon({ className = "h-4 w-4" }) {
   return (
@@ -244,6 +244,26 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   const rcaOfflineEnriched = useMemo(() => rcaOfflineBreakdownEnriched(filtered), [filtered]);
   const rcaAllView = useMemo(() => rcaAllBreakdown(filtered), [filtered]);
 
+  const camCsv = useCallback(
+    (base, ...extra) => buildExportFilename(base, zoneFilter, podFilter, statusFilter, ...extra),
+    [zoneFilter, podFilter, statusFilter]
+  );
+
+  const attentionStrip = useMemo(() => {
+    const minCams = 3;
+    const worstZones = [...zoneAgg]
+      .filter((z) => z.total >= minCams && z.offline > 0)
+      .sort((a, b) => b.offlinePct - a.offlinePct)
+      .slice(0, 3);
+    const worstPods = [...podAgg]
+      .filter((p) => p.total >= minCams && p.offline > 0)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 3);
+    const notCentralized = kpis.notCentralized ?? 0;
+    if (!worstZones.length && !worstPods.length && !notCentralized) return null;
+    return { worstZones, worstPods, notCentralized };
+  }, [zoneAgg, podAgg, kpis.notCentralized]);
+
   const selectClass =
     "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-sfx dark:focus:ring-sfx/25";
 
@@ -318,7 +338,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     if (mode === "offline") subset = subset.filter((r) => r.isOffline);
     const slug = String(zone).replace(/\W+/g, "_");
     const tag = mode === "all" ? "all" : mode;
-    onDownloadFiltered(subset, `camera-status-zone-${slug}-${tag}.csv`);
+    onDownloadFiltered(subset, camCsv("camera-status-zone", slug, tag));
   };
 
   const downloadPodRow = (pod, mode = "all") => {
@@ -327,18 +347,18 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
     if (mode === "offline") subset = subset.filter((r) => r.isOffline);
     const slug = String(pod).replace(/\W+/g, "_");
     const tag = mode === "all" ? "all" : mode;
-    onDownloadFiltered(subset, `camera-status-pod-${slug}-${tag}.csv`);
+    onDownloadFiltered(subset, camCsv("camera-status-pod", slug, tag));
   };
 
   const downloadRcaOfflineRow = (remark) => {
     const subset = offlineRows.filter((r) => (r.rca || "").trim() === remark);
     const safe = String(remark).replace(/\W+/g, "_").slice(0, 80);
-    onDownloadFiltered(subset, `camera-status-rca-offline-${safe}.csv`);
+    onDownloadFiltered(subset, camCsv("camera-status-rca-offline", safe));
   };
 
   const exportSnapshotSummary = () => {
     downloadCsv(
-      "camera-status-snapshot-summary.csv",
+      camCsv("camera-status-snapshot-summary"),
       [
         {
           Scope: "Current view",
@@ -386,12 +406,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         Pct_of_view: Math.round((neither / total) * 10000) / 100,
       });
     }
-    downloadCsv("camera-status-connectivity-mix.csv", rows, ["Status", "Count", "Pct_of_view"]);
+    downloadCsv(camCsv("camera-status-connectivity-mix"), rows, ["Status", "Count", "Pct_of_view"]);
   };
 
   const exportZoneChartData = () => {
     downloadCsv(
-      "camera-status-zone-offline-pct-chart-data.csv",
+      camCsv("camera-status-zone-offline-pct-chart-data"),
       zoneAgg.map((z) => ({
         Zone: z.zone,
         Offline_pct: Math.round(z.offlinePct * 100) / 100,
@@ -404,7 +424,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
   const exportRcaOfflineDetailed = () => {
     downloadCsv(
-      "camera-status-rca-offline-full.csv",
+      camCsv("camera-status-rca-offline-full"),
       rcaOfflineEnriched.map((x) => ({
         RCA_Remark: x.remark,
         Offline_cameras: x.count,
@@ -417,7 +437,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
   const exportRcaAllCameras = () => {
     downloadCsv(
-      "camera-status-rca-all-cameras.csv",
+      camCsv("camera-status-rca-all-cameras"),
       rcaAllView.map((x) => ({
         RCA_Remark: x.remark,
         Cameras: x.count,
@@ -502,6 +522,70 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
         </div>
       </div>
 
+      {attentionStrip ? (
+        <div
+          className="surface-card border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-50/90 to-white dark:border-l-amber-400 dark:from-amber-950/40 dark:to-slate-900/50"
+          role="region"
+          aria-label="Attention summary"
+        >
+          <div className="p-4 pb-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200/90">
+              Attention needed
+            </p>
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+              Worst offline % by zone and POD (≥3 cameras), plus Not centralized in the current view.
+            </p>
+          </div>
+          <div className="grid gap-4 p-4 pt-3 sm:grid-cols-3">
+            {attentionStrip.worstZones.length ? (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Worst zones (offline %)
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-900 dark:text-slate-100">
+                  {attentionStrip.worstZones.map((z) => (
+                    <li key={z.zone} className="flex justify-between gap-2 tabular-nums">
+                      <span className="min-w-0 truncate font-medium">{z.zone}</span>
+                      <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                        {z.offlinePct.toFixed(1)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {attentionStrip.worstPods.length ? (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Worst PODs (offline %)
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm text-slate-900 dark:text-slate-100">
+                  {attentionStrip.worstPods.map((p) => (
+                    <li key={p.pod} className="flex justify-between gap-2 tabular-nums">
+                      <span className="min-w-0 truncate font-medium">{p.pod}</span>
+                      <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">
+                        {p.pct.toFixed(1)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {attentionStrip.notCentralized > 0 ? (
+              <div>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Not centralized
+                </p>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-300">
+                  {attentionStrip.notCentralized.toLocaleString()}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">in current view</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
@@ -510,7 +594,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             sub: "Current view",
             icon: "📹",
             tone: "text-sfx dark:text-sfx-cta",
-            onDl: () => onDownloadFiltered(filtered, "camera-status-all-in-view.csv"),
+            onDl: () => onDownloadFiltered(filtered, camCsv("camera-status-all-in-view")),
             dlTitle: "Download all cameras in current view",
           },
           {
@@ -519,7 +603,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             sub: `${kpis.onlinePct.toFixed(1)}% of view`,
             icon: "✓",
             tone: "text-emerald-600 dark:text-emerald-400",
-            onDl: () => onDownloadFiltered(onlineRows, "camera-status-online.csv"),
+            onDl: () => onDownloadFiltered(onlineRows, camCsv("camera-status-online")),
             dlTitle: "Download online cameras",
           },
           {
@@ -528,7 +612,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             sub: `${kpis.offlinePct.toFixed(1)}% of view`,
             icon: "✕",
             tone: "text-red-600 dark:text-red-400",
-            onDl: () => onDownloadFiltered(offlineRows, "camera-status-offline.csv"),
+            onDl: () => onDownloadFiltered(offlineRows, camCsv("camera-status-offline")),
             dlTitle: "Download offline cameras",
           },
           {
@@ -538,7 +622,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             icon: "◎",
             tone: "text-amber-600 dark:text-amber-400",
             onDl: () =>
-              onDownloadFiltered(notCentralizedRows, "camera-status-not-centralized.csv"),
+              onDownloadFiltered(notCentralizedRows, camCsv("camera-status-not-centralized")),
             dlTitle: "Download Not Centralized cameras",
           },
         ].map((k) => (
@@ -621,7 +705,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             label="Zone summary"
             onClickSlice={() =>
               downloadCsv(
-                "camera-status-zone-summary.csv",
+                camCsv("camera-status-zone-summary"),
                 zoneAgg.map((z) => ({
                   Zone: z.zone,
                   Total_Cameras: z.total,
@@ -724,7 +808,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
             label="POD summary"
             onClickSlice={() =>
               downloadCsv(
-                "camera-status-pod-summary.csv",
+                camCsv("camera-status-pod-summary"),
                 podAgg.map((p) => ({
                   POD: p.pod,
                   Total_Cameras: p.total,

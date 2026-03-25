@@ -37,8 +37,9 @@ import {
   ISSUE_KIND_LABELS,
   rowsMatchingRcaAggregateKey,
 } from "./lib/analytics.js";
-import { downloadCsv, shortCount } from "./lib/csvExport.js";
-import { isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
+import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
+import { getFirebaseAuth, isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
+import { onAuthStateChanged } from "firebase/auth";
 import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnapshot.js";
 import { DataTableTab } from "./DataTableTab.jsx";
 import { CameraStatusTab } from "./CameraStatusTab.jsx";
@@ -280,9 +281,17 @@ function issueSlice(allRows, pill, issueKind) {
   return [];
 }
 
-function downloadAggregateCsv(filename, pairs) {
-  const rows = pairs.map(([label, count]) => ({ label, count }));
-  downloadCsv(filename, rows, ["label", "count"]);
+const UI_STORAGE_KEY = "data-visual-ui-v1";
+
+function readStoredUi() {
+  try {
+    const raw = localStorage.getItem(UI_STORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    return o && typeof o === "object" ? o : null;
+  } catch {
+    return null;
+  }
 }
 
 function stripExportRows(rows, fields) {
@@ -591,16 +600,31 @@ export default function App() {
   const [colMap, setColMap] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(() => {
+    const v = readStoredUi()?.filter;
+    return typeof v === "string" && v ? v : "all";
+  });
   const [hotspotsExpanded, setHotspotsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    const v = readStoredUi()?.activeTab;
+    return v === "dashboard" || v === "camera" || v === "data" ? v : "dashboard";
+  });
   const [cameraStatusRows, setCameraStatusRows] = useState([]);
   const [cameraStatusFileName, setCameraStatusFileName] = useState("");
   const [cameraStatusUpdatedAt, setCameraStatusUpdatedAt] = useState(null);
   const [cameraStatusError, setCameraStatusError] = useState("");
-  const [camZoneFilter, setCamZoneFilter] = useState("all");
-  const [camPodFilter, setCamPodFilter] = useState("all");
-  const [camStatusFilter, setCamStatusFilter] = useState("all");
+  const [camZoneFilter, setCamZoneFilter] = useState(() => {
+    const v = readStoredUi()?.camZoneFilter;
+    return typeof v === "string" ? v : "all";
+  });
+  const [camPodFilter, setCamPodFilter] = useState(() => {
+    const v = readStoredUi()?.camPodFilter;
+    return typeof v === "string" ? v : "all";
+  });
+  const [camStatusFilter, setCamStatusFilter] = useState(() => {
+    const v = readStoredUi()?.camStatusFilter;
+    return typeof v === "string" ? v : "all";
+  });
   const [dataTableSearch, setDataTableSearch] = useState("");
   const [dataTableZone, setDataTableZone] = useState("all");
   const [dataTableRca, setDataTableRca] = useState("all");
@@ -634,6 +658,48 @@ export default function App() {
   useEffect(() => {
     if (camStatusFilter === "unknown") setCamStatusFilter("all");
   }, [camStatusFilter]);
+
+  const dashCsvName = useCallback(
+    (base, ...extra) => buildExportFilename(base, filter, ...extra),
+    [filter]
+  );
+
+  const downloadAggregateCsv = useCallback(
+    (baseName, pairs) => {
+      const rows = pairs.map(([label, count]) => ({ label, count }));
+      downloadCsv(dashCsvName(baseName), rows, ["label", "count"]);
+    },
+    [dashCsvName]
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab === "dashboard" || tab === "camera" || tab === "data") {
+      setActiveTab(tab);
+    }
+    const manifest = params.get("manifest");
+    if (manifest != null && manifest !== "") {
+      setDataTableSearch(manifest);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        UI_STORAGE_KEY,
+        JSON.stringify({
+          activeTab,
+          filter,
+          camZoneFilter,
+          camPodFilter,
+          camStatusFilter,
+        })
+      );
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [activeTab, filter, camZoneFilter, camPodFilter, camStatusFilter]);
 
   useEffect(() => {
     ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
@@ -984,7 +1050,7 @@ export default function App() {
         if (!pair) return;
         const z = pair[0];
         downloadCsv(
-          `zone-${String(z).replace(/\W+/g, "_")}.csv`,
+          dashCsvName("zone-donut-slice", z),
           stripExportRows(
             filtered.filter(
               (r) =>
@@ -1013,7 +1079,7 @@ export default function App() {
         },
       },
     }),
-    [isDark, zonePairs, filtered, colMapSafe.zone, exportFields]
+    [isDark, zonePairs, filtered, colMapSafe.zone, exportFields, dashCsvName]
   );
 
   const ingestParsed = useCallback((res, name) => {
@@ -1071,8 +1137,15 @@ export default function App() {
 
   useEffect(() => {
     if (!isCloudSnapshotConfigured()) return;
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+
     let cancelled = false;
-    (async () => {
+    let loadStarted = false;
+
+    const runCloudLoad = async () => {
+      if (cancelled || loadStarted || !auth.currentUser) return;
+      loadStarted = true;
       setCloudLoading(true);
       setCloudLoadStep("fetch");
       try {
@@ -1142,9 +1215,20 @@ export default function App() {
           setCloudLoadStep(null);
         }
       }
-    })();
+    };
+
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (cancelled) return;
+      if (!user) {
+        loadStarted = false;
+        return;
+      }
+      void runCloudLoad();
+    });
+
     return () => {
       cancelled = true;
+      unsub();
     };
   }, [ingestParsed, applyCameraParseResult]);
 
@@ -1291,7 +1375,12 @@ export default function App() {
       status: camStatusFilter,
     });
     downloadCsv(
-      "camera-status-detailed.csv",
+      buildExportFilename(
+        "camera-status-detailed",
+        camZoneFilter,
+        camPodFilter,
+        camStatusFilter
+      ),
       rowsToDetailExport(rows),
       CAMERA_DETAIL_FIELDS
     );
@@ -1303,11 +1392,11 @@ export default function App() {
 
   const exportFullDashboardRows = useCallback(() => {
     downloadCsv(
-      "dashboard-all-rows.csv",
+      dashCsvName("dashboard-all-rows"),
       stripExportRows(annotated, exportFields),
       exportFields
     );
-  }, [annotated, exportFields]);
+  }, [annotated, exportFields, dashCsvName]);
 
   const handleFile = useCallback(
     (file) => {
@@ -1686,7 +1775,11 @@ export default function App() {
                   type="button"
                   onClick={() =>
                     downloadCsv(
-                      "data-table-export.csv",
+                      buildExportFilename(
+                        "data-table-export",
+                        filter,
+                        dataTableSearch || "all"
+                      ),
                       stripExportRows(dataTableFiltered, exportFields),
                       exportFields
                     )
@@ -1776,7 +1869,7 @@ export default function App() {
                         type="button"
                         onClick={() =>
                           downloadCsv(
-                            "lm-fraud-rows.csv",
+                            dashCsvName("lm-fraud-rows"),
                             stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
                             exportFields
                           )
@@ -1796,7 +1889,7 @@ export default function App() {
                   variant="red"
                   onClickSlice={() =>
                     downloadCsv(
-                      "lm-fraud-rows.csv",
+                      dashCsvName("lm-fraud-rows"),
                       stripExportRows(issueSlice(annotated, "all", "lm_fraud"), exportFields),
                       exportFields
                     )
@@ -1815,7 +1908,7 @@ export default function App() {
                         type="button"
                         onClick={() =>
                           downloadCsv(
-                            "partial-bagging-rows.csv",
+                            dashCsvName("partial-bagging-rows"),
                             stripExportRows(
                               issueSlice(annotated, "all", "partial_bagging"),
                               exportFields
@@ -1838,7 +1931,7 @@ export default function App() {
                   variant="amber"
                   onClickSlice={() =>
                     downloadCsv(
-                      "partial-bagging-rows.csv",
+                      dashCsvName("partial-bagging-rows"),
                       stripExportRows(issueSlice(annotated, "all", "partial_bagging"), exportFields),
                       exportFields
                     )
@@ -1872,7 +1965,7 @@ export default function App() {
                         type="button"
                         onClick={() =>
                           downloadCsv(
-                            `${p.id}-filter.csv`,
+                            dashCsvName(`${p.id}-filter`),
                             stripExportRows(applyFilter(annotated, p.id), exportFields),
                             exportFields
                           )
@@ -1890,7 +1983,7 @@ export default function App() {
                       label={`Download ${p.label} rows`}
                       onClickSlice={() =>
                         downloadCsv(
-                          `${p.id}-filter.csv`,
+                          dashCsvName(`${p.id}-filter`),
                           stripExportRows(applyFilter(annotated, p.id), exportFields),
                           exportFields
                         )
@@ -1912,7 +2005,7 @@ export default function App() {
                   icon: "📊",
                   tone: "text-sfx dark:text-sfx-cta",
                   dl: () =>
-                    downloadCsv("all-records.csv", stripExportRows(annotated, exportFields), exportFields),
+                    downloadCsv(dashCsvName("all-records"), stripExportRows(annotated, exportFields), exportFields),
                 },
                 {
                   title: "Proper Bagging",
@@ -1922,7 +2015,7 @@ export default function App() {
                   tone: "text-emerald-600 dark:text-emerald-400",
                   dl: () =>
                     downloadCsv(
-                      "proper-bagging.csv",
+                      dashCsvName("proper-bagging"),
                       stripExportRows(
                         annotated.filter((r) => r.__kind === "proper_bagging"),
                         exportFields
@@ -1938,7 +2031,7 @@ export default function App() {
                   tone: "text-orange-600 dark:text-orange-400",
                   dl: () =>
                     downloadCsv(
-                      "partial-bagging-kpi.csv",
+                      dashCsvName("partial-bagging-kpi"),
                       stripExportRows(
                         annotated.filter((r) => r.__kind === "partial_bagging"),
                         exportFields
@@ -1954,7 +2047,7 @@ export default function App() {
                   tone: "text-red-600 dark:text-red-400",
                   dl: () =>
                     downloadCsv(
-                      "lm-fraud-kpi.csv",
+                      dashCsvName("lm-fraud-kpi"),
                       stripExportRows(
                         annotated.filter((r) => r.__kind === "lm_fraud"),
                         exportFields
@@ -1970,7 +2063,7 @@ export default function App() {
                   tone: "text-violet-600 dark:text-violet-400",
                   dl: () =>
                     downloadCsv(
-                      "camera-issues.csv",
+                      dashCsvName("camera-issues"),
                       stripExportRows(
                         annotated.filter((r) => r.__kind === "camera_issues"),
                         exportFields
@@ -1986,7 +2079,7 @@ export default function App() {
                   tone: "text-slate-800 dark:text-slate-100",
                   dl: () =>
                     downloadCsv(
-                      "total-issues.csv",
+                      dashCsvName("total-issues"),
                       stripExportRows(
                         annotated.filter((r) =>
                           [
@@ -2068,7 +2161,7 @@ export default function App() {
                       label="POC productivity"
                       onClickSlice={() =>
                         downloadCsv(
-                          "poc-productivity-summary.csv",
+                          dashCsvName("poc-productivity-summary"),
                           pocProductivityList.map((r) => ({
                             poc: r.poc,
                             total_eligible: r.totalEligible,
@@ -2159,7 +2252,7 @@ export default function App() {
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
                                     downloadCsv(
-                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      dashCsvName("poc-rows", row.poc),
                                       stripExportRows(subset, exportFields),
                                       exportFields
                                     );
@@ -2182,7 +2275,7 @@ export default function App() {
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
                                     downloadCsv(
-                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      dashCsvName("poc-rows", row.poc),
                                       stripExportRows(subset, exportFields),
                                       exportFields
                                     );
@@ -2205,7 +2298,7 @@ export default function App() {
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
                                     downloadCsv(
-                                      `poc-${String(row.poc).replace(/\W+/g, "_")}-rows.csv`,
+                                      dashCsvName("poc-rows", row.poc),
                                       stripExportRows(subset, exportFields),
                                       exportFields
                                     );
@@ -2324,7 +2417,7 @@ export default function App() {
                     label="Weekly trends"
                     onClickSlice={() =>
                       downloadCsv(
-                        "weekly-trends-partial-fraud-camera.csv",
+                        dashCsvName("weekly-trends-partial-fraud-camera"),
                         weeklyPivotRows,
                         ["week_start", "partial_bagging", "lm_fraud", "camera_issues"]
                       )
@@ -2384,7 +2477,7 @@ export default function App() {
                               label={m.title}
                               onClickSlice={() =>
                                 downloadCsv(
-                                  m.file,
+                                  dashCsvName(String(m.file).replace(/\.csv$/i, "")),
                                   m.series.map((s) => ({
                                     week_start: s.weekKey,
                                     [m.col]: s.count,
@@ -2426,7 +2519,7 @@ export default function App() {
                                   return d && weekKeyFromDate(d) === wk;
                                 });
                                 downloadCsv(
-                                  `weekly-${kind}-${wk}.csv`,
+                                  dashCsvName("weekly-latest", kind, wk),
                                   stripExportRows(subset, exportFields),
                                   exportFields
                                 );
@@ -2501,7 +2594,7 @@ export default function App() {
                           title={`Download rows for ${z} only`}
                           onClick={() =>
                             downloadCsv(
-                              `zone-${String(z).replace(/\W+/g, "_")}.csv`,
+                              dashCsvName("zone", z),
                               stripExportRows(
                                 filtered.filter(
                                   (r) =>
@@ -2523,7 +2616,7 @@ export default function App() {
                           title={`Download rows for ${z}`}
                           onClick={() =>
                             downloadCsv(
-                              `zone-${String(z).replace(/\W+/g, "_")}.csv`,
+                              dashCsvName("zone", z),
                               stripExportRows(
                                 filtered.filter(
                                   (r) =>
@@ -2567,7 +2660,7 @@ export default function App() {
                       const label = rcaPairs[idx]?.[0];
                       if (label == null) return;
                       downloadCsv(
-                        `rca-category-${String(label).replace(/\W+/g, "_").slice(0, 80)}.csv`,
+                        dashCsvName("rca-category", label),
                         stripExportRows(
                           rowsMatchingRcaAggregateKey(filtered, label),
                           exportFields
@@ -2621,7 +2714,7 @@ export default function App() {
                         title={`Download hotspot rows for ${hub}`}
                         onClick={() =>
                           downloadCsv(
-                            `hub-${String(hub).replace(/\W+/g, "_")}-hotspot-rcas.csv`,
+                            dashCsvName("hub-hotspot", hub),
                             stripExportRows(
                               hotspotRows.filter(
                                 (r) =>
@@ -2642,7 +2735,7 @@ export default function App() {
                         title={`Download hotspot rows for ${hub}`}
                         onClick={() =>
                           downloadCsv(
-                            `hub-${String(hub).replace(/\W+/g, "_")}-hotspot-rcas.csv`,
+                            dashCsvName("hub-hotspot", hub),
                             stripExportRows(
                               hotspotRows.filter(
                                 (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
@@ -2685,7 +2778,7 @@ export default function App() {
                 }
                 onDownloadRows={() =>
                   downloadCsv(
-                    "partial-bagging-by-hub-rows.csv",
+                    dashCsvName("partial-bagging-by-hub-rows"),
                     stripExportRows(
                       issueSlice(annotated, filter, "partial_bagging"),
                       exportFields
@@ -2696,7 +2789,7 @@ export default function App() {
                 onBarSlice={(hub) => {
                   if (!colMapSafe.hub) return;
                   downloadCsv(
-                    `partial-bagging-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    dashCsvName("partial-bagging-hub", hub),
                     stripExportRows(
                       issueSlice(annotated, filter, "partial_bagging").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
@@ -2719,7 +2812,7 @@ export default function App() {
                 }
                 onDownloadRows={() =>
                   downloadCsv(
-                    "lm-fraud-by-hub-rows.csv",
+                    dashCsvName("lm-fraud-by-hub-rows"),
                     stripExportRows(
                       issueSlice(annotated, filter, "lm_fraud"),
                       exportFields
@@ -2730,7 +2823,7 @@ export default function App() {
                 onBarSlice={(hub) => {
                   if (!colMapSafe.hub) return;
                   downloadCsv(
-                    `lm-fraud-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    dashCsvName("lm-fraud-hub", hub),
                     stripExportRows(
                       issueSlice(annotated, filter, "lm_fraud").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
@@ -2753,7 +2846,7 @@ export default function App() {
                 }
                 onDownloadRows={() =>
                   downloadCsv(
-                    "camera-issues-by-hub-rows.csv",
+                    dashCsvName("camera-issues-by-hub-rows"),
                     stripExportRows(
                       issueSlice(annotated, filter, "camera_issues"),
                       exportFields
@@ -2764,7 +2857,7 @@ export default function App() {
                 onBarSlice={(hub) => {
                   if (!colMapSafe.hub) return;
                   downloadCsv(
-                    `camera-issues-hub-${String(hub).replace(/\W+/g, "_")}.csv`,
+                    dashCsvName("camera-issues-hub", hub),
                     stripExportRows(
                       issueSlice(annotated, filter, "camera_issues").filter(
                         (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
@@ -2792,7 +2885,7 @@ export default function App() {
                     label="Recent problematic issues"
                     onClickSlice={() =>
                       downloadCsv(
-                        "recent-issues-problematic-sorted.csv",
+                        dashCsvName("recent-issues-problematic-sorted"),
                         stripExportRows(recentIssuesSorted, exportFields),
                         exportFields
                       )
@@ -2870,7 +2963,14 @@ export default function App() {
                                 title="Download this row"
                                 onClick={() =>
                                   downloadCsv(
-                                    "issue-row.csv",
+                                    dashCsvName(
+                                      "issue-row",
+                                      colMapSafe.manifest != null
+                                        ? r[colMapSafe.manifest]
+                                        : colMapSafe.hub != null
+                                          ? r[colMapSafe.hub]
+                                          : idx
+                                    ),
                                     stripExportRows([r], exportFields),
                                     exportFields
                                   )
@@ -2887,7 +2987,14 @@ export default function App() {
                               title="Download this row"
                               onClick={() =>
                                 downloadCsv(
-                                  "issue-row.csv",
+                                  dashCsvName(
+                                    "issue-row",
+                                    colMapSafe.manifest != null
+                                      ? r[colMapSafe.manifest]
+                                      : colMapSafe.hub != null
+                                        ? r[colMapSafe.hub]
+                                        : idx
+                                  ),
                                   stripExportRows([r], exportFields),
                                   exportFields
                                 )

@@ -12,6 +12,7 @@ const SHADOWFAX_EMAIL_SUFFIX = "@shadowfax.in";
 
 /** When true, app shows sign-in and only @shadowfax.in users may use the dashboard. */
 export function requiresShadowfaxGate() {
+  if (import.meta.env.DEV) return false;
   return import.meta.env.VITE_SHADOWFAX_AUTH === "true";
 }
 

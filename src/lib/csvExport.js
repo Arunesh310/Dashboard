@@ -1,3 +1,21 @@
+function slugSegment(seg) {
+  const s = String(seg ?? "")
+    .trim()
+    .replace(/\.csv$/gi, "")
+    .replace(/\W+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  return s.slice(0, 56) || "x";
+}
+
+/** YYYY-MM-DD + slugged segments for readable export names. */
+export function buildExportFilename(base, ...segments) {
+  const date = new Date().toISOString().slice(0, 10);
+  const root = slugSegment(base);
+  const extras = segments.map(slugSegment).filter((x) => x && x !== "x");
+  return `${[root, date, ...extras].join("_")}.csv`;
+}
+
 function escapeCell(v) {
   const s = v == null ? "" : String(v);
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
