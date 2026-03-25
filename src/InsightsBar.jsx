@@ -1,10 +1,26 @@
+function formatBaselineWhen(iso) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export function InsightsBar({
   dashboardDiff,
   cameraDiff,
+  cameraBaselineInsight,
   onDismissDashboardDiff,
   onDismissCameraDiff,
+  onDismissCameraBaselineInsight,
 }) {
-  if (!dashboardDiff && !cameraDiff) return null;
+  const showBaseline = Boolean(cameraBaselineInsight);
+  if (!dashboardDiff && !cameraDiff && !showBaseline) return null;
 
   return (
     <div
@@ -12,6 +28,75 @@ export function InsightsBar({
       data-html2pdf-ignore="true"
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-3 py-2 sm:px-5 lg:px-6">
+        {cameraBaselineInsight ? (
+          <div className="flex flex-col gap-2 rounded-xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/95 to-white px-3 py-2.5 text-xs text-emerald-950 dark:border-emerald-800/45 dark:from-emerald-950/35 dark:to-slate-900/50 dark:text-emerald-50 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200/95">
+                Camera insight · since last file
+              </p>
+              <p className="text-[11px] leading-snug text-emerald-900/90 dark:text-emerald-100/85">
+                Compared to snapshot from{" "}
+                <span className="font-semibold">
+                  {formatBaselineWhen(cameraBaselineInsight.baselineSavedAt)}
+                </span>
+                {cameraBaselineInsight.baselineFileName ? (
+                  <>
+                    {" "}
+                    <span className="text-emerald-800/80 dark:text-emerald-200/70">·</span>{" "}
+                    <span className="italic opacity-90">{cameraBaselineInsight.baselineFileName}</span>
+                  </>
+                ) : null}
+              </p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold">
+                {cameraBaselineInsight.offlineToOnlineCount > 0 ? (
+                  <span className="text-emerald-800 dark:text-emerald-300">
+                    {cameraBaselineInsight.offlineToOnlineCount.toLocaleString()} offline → online
+                  </span>
+                ) : null}
+                {cameraBaselineInsight.notCentralizedToOnlineCount > 0 ? (
+                  <span className="text-teal-800 dark:text-teal-300">
+                    {cameraBaselineInsight.notCentralizedToOnlineCount.toLocaleString()} not centralized →
+                    online
+                  </span>
+                ) : null}
+              </div>
+              {cameraBaselineInsight.offlineToOnlineSample.length ? (
+                <p
+                  className="truncate font-mono text-[10px] text-emerald-900/75 dark:text-emerald-200/75"
+                  title={cameraBaselineInsight.offlineToOnlineSample.join(", ")}
+                >
+                  <span className="font-sans font-semibold">Offline→online:</span>{" "}
+                  {cameraBaselineInsight.offlineToOnlineSample.join(", ")}
+                  {cameraBaselineInsight.offlineToOnlineCount >
+                  cameraBaselineInsight.offlineToOnlineSample.length
+                    ? "…"
+                    : ""}
+                </p>
+              ) : null}
+              {cameraBaselineInsight.notCentralizedToOnlineSample.length ? (
+                <p
+                  className="truncate font-mono text-[10px] text-teal-900/80 dark:text-teal-200/75"
+                  title={cameraBaselineInsight.notCentralizedToOnlineSample.join(", ")}
+                >
+                  <span className="font-sans font-semibold">Not centralized→online:</span>{" "}
+                  {cameraBaselineInsight.notCentralizedToOnlineSample.join(", ")}
+                  {cameraBaselineInsight.notCentralizedToOnlineCount >
+                  cameraBaselineInsight.notCentralizedToOnlineSample.length
+                    ? "…"
+                    : ""}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onDismissCameraBaselineInsight}
+              className="shrink-0 self-end rounded-lg border border-emerald-300/80 bg-white/90 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-white dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-100 dark:hover:bg-slate-800 sm:self-start"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         {dashboardDiff ? (
           <div className="flex flex-col gap-2 rounded-xl border border-sky-200/90 bg-sky-50/90 px-3 py-2 text-xs text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1 space-y-1">

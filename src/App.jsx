@@ -50,8 +50,10 @@ import {
   rowsToDetailExport,
   CAMERA_DETAIL_FIELDS,
 } from "./lib/cameraStatus.js";
+import { clearCameraBaseline, loadCameraBaseline, saveCameraBaseline } from "./lib/cameraBaselineStorage.js";
 import {
   cameraConnectivityIndex,
+  diffCameraBaselineInsight,
   diffCameraConnectivityMaps,
   diffDashboardManifestMaps,
   manifestZoneMapFromDashboardRows,
@@ -648,6 +650,8 @@ export default function App() {
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
   const [dashboardUploadDiff, setDashboardUploadDiff] = useState(null);
   const [cameraUploadDiff, setCameraUploadDiff] = useState(null);
+  const [cameraBaselineInsight, setCameraBaselineInsight] = useState(null);
+  const [baselineInsightDismissed, setBaselineInsightDismissed] = useState(false);
   const exportRootRef = useRef(null);
   const cameraStatusPdfRef = useRef(null);
   const dashboardManifestRef = useRef(null);
@@ -1141,6 +1145,18 @@ export default function App() {
       );
       return false;
     }
+
+    const storedBaseline = loadCameraBaseline();
+    let baselineInsight = null;
+    if (storedBaseline?.map?.size) {
+      baselineInsight = diffCameraBaselineInsight(storedBaseline.map, rows, {
+        savedAt: storedBaseline.savedAt,
+        fileName: storedBaseline.fileName,
+      });
+    }
+    setBaselineInsightDismissed(false);
+    setCameraBaselineInsight(baselineInsight);
+
     const nextIdx = cameraConnectivityIndex(rows);
     const prevIdx = cameraConnectivityRef.current;
     setCameraUploadDiff(diffCameraConnectivityMaps(prevIdx, nextIdx));
@@ -1152,6 +1168,7 @@ export default function App() {
     setCamPodFilter("all");
     setCamStatusFilter("all");
     setCameraStatusError("");
+    saveCameraBaseline(rows, fileName);
     return true;
   }, []);
 
@@ -1271,7 +1288,10 @@ export default function App() {
 
   const resetCameraStatus = useCallback(() => {
     cameraConnectivityRef.current = null;
+    clearCameraBaseline();
     setCameraUploadDiff(null);
+    setCameraBaselineInsight(null);
+    setBaselineInsightDismissed(false);
     setCameraStatusRows([]);
     setCameraStatusFileName("");
     setCameraStatusUpdatedAt(null);
@@ -1838,8 +1858,12 @@ export default function App() {
         <InsightsBar
           dashboardDiff={dashboardUploadDiff}
           cameraDiff={cameraUploadDiff}
+          cameraBaselineInsight={
+            baselineInsightDismissed ? null : cameraBaselineInsight
+          }
           onDismissDashboardDiff={() => setDashboardUploadDiff(null)}
           onDismissCameraDiff={() => setCameraUploadDiff(null)}
+          onDismissCameraBaselineInsight={() => setBaselineInsightDismissed(true)}
         />
       </header>
 

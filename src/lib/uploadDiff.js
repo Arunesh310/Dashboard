@@ -1,5 +1,6 @@
 import { annotateRows, canonicalizeZoneLabel } from "./analytics.js";
 import { detectColumns, getRcaValue } from "./columns.js";
+import { isNotCentralizedRemark } from "./cameraStatus.js";
 
 const SAMPLE = 8;
 const ZONE_CHANGE_CAP = 12;
@@ -166,5 +167,55 @@ export function diffCameraConnectivityMaps(prev, next) {
     removedSample: removed.slice(0, SAMPLE),
     onlineToOfflineSample: onlineToOffline.slice(0, SAMPLE),
     offlineToOnlineSample: offlineToOnline.slice(0, SAMPLE),
+  };
+}
+
+/**
+ * Rich index for cross-session camera baseline (connectivity + not-centralized flag).
+ * @param {import("./cameraStatus.js").CameraStatusRow[]} rows
+ * @returns {Map<string, { connectivity: 'online'|'offline'|'other', notCentralized: boolean }>}
+ */
+export function cameraInsightIndex(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    const notCentralized =
+      isNotCentralizedRemark(r.rca) || isNotCentralizedRemark(r.statusRaw);
+    m.set(r.cameraId, { connectivity: connectivity(r), notCentralized });
+  }
+  return m;
+}
+
+const BASELINE_SAMPLE = 8;
+
+/**
+ * Positive transitions vs a stored baseline: offline→online, not centralized→online.
+ * @param {Map<string, { connectivity: string, notCentralized: boolean }>|null|undefined} prevMap
+ * @param {import("./cameraStatus.js").CameraStatusRow[]} nextRows
+ * @param {{ savedAt: string, fileName: string }} baselineMeta
+ */
+export function diffCameraBaselineInsight(prevMap, nextRows, baselineMeta) {
+  if (!prevMap || prevMap.size === 0) return null;
+  const nextMap = cameraInsightIndex(nextRows);
+  /** @type {string[]} */
+  const offlineToOnline = [];
+  /** @type {string[]} */
+  const notCentralizedToOnline = [];
+
+  for (const [id, n] of nextMap) {
+    const p = prevMap.get(id);
+    if (!p || n.connectivity !== "online") continue;
+    if (p.connectivity === "offline") offlineToOnline.push(id);
+    else if (p.notCentralized) notCentralizedToOnline.push(id);
+  }
+
+  if (offlineToOnline.length === 0 && notCentralizedToOnline.length === 0) return null;
+
+  return {
+    baselineSavedAt: baselineMeta.savedAt,
+    baselineFileName: baselineMeta.fileName || "previous file",
+    offlineToOnlineCount: offlineToOnline.length,
+    notCentralizedToOnlineCount: notCentralizedToOnline.length,
+    offlineToOnlineSample: offlineToOnline.slice(0, BASELINE_SAMPLE),
+    notCentralizedToOnlineSample: notCentralizedToOnline.slice(0, BASELINE_SAMPLE),
   };
 }
