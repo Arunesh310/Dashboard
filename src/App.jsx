@@ -1704,19 +1704,6 @@ export default function App() {
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={activeTab === "data"}
-                  onClick={() => setActiveTab("data")}
-                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
-                    activeTab === "data"
-                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
-                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
-                  }`}
-                >
-                  Data Table
-                </button>
-                <button
-                  type="button"
-                  role="tab"
                   aria-selected={activeTab === "camera"}
                   onClick={() => setActiveTab("camera")}
                   className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
@@ -1733,6 +1720,19 @@ export default function App() {
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sfx shadow-[0_0_6px_rgba(0,138,113,0.45)] dark:bg-sfx-cta dark:shadow-[0_0_6px_rgba(213,210,38,0.35)]" />
                   </span>
                   Camera Status
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "data"}
+                  onClick={() => setActiveTab("data")}
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                    activeTab === "data"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
+                  }`}
+                >
+                  Data Table
                 </button>
               </div>
             </nav>
