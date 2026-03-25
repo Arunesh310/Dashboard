@@ -8,6 +8,12 @@
     text-size-adjust: 100%;
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
   body {
     margin: 0;
     overflow-x: clip;
@@ -24,22 +30,22 @@
 
 @layer components {
   .btn-header {
-    @apply inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold shadow-btn transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:min-h-0 sm:min-w-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark;
+    @apply inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold shadow-btn transition-[transform,box-shadow,border-color,background-color,color,opacity] duration-300 ease-sfx-smooth will-change-transform disabled:pointer-events-none disabled:opacity-35 motion-safe:active:scale-[0.97] sm:min-h-0 sm:min-w-0 sm:gap-2 sm:px-3.5 sm:text-sm dark:shadow-btn-dark;
   }
 
   .btn-header-ghost {
-    @apply btn-header border-slate-200/90 bg-white/90 text-slate-700 backdrop-blur-sm hover:border-slate-300 hover:bg-white hover:shadow-md dark:border-slate-600/80 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800;
+    @apply btn-header border-slate-200/90 bg-white/90 text-slate-700 backdrop-blur-sm hover:border-slate-300 hover:bg-white hover:shadow-md motion-safe:hover:-translate-y-px dark:border-slate-600/80 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-800;
   }
 
   .btn-header-icon {
-    @apply btn-header border-slate-200/90 bg-white/90 text-slate-600 backdrop-blur-sm hover:border-sfx/35 hover:bg-sfx-soft/90 hover:text-sfx dark:border-slate-600/80 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-sfx/50 dark:hover:bg-slate-800 dark:hover:text-sfx-cta;
+    @apply btn-header border-slate-200/90 bg-white/90 text-slate-600 backdrop-blur-sm hover:border-sfx/40 hover:bg-sfx-soft/90 hover:text-sfx hover:shadow-sfx-glow motion-safe:hover:-translate-y-px motion-safe:hover:scale-[1.03] dark:border-slate-600/80 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-sfx/50 dark:hover:bg-slate-800 dark:hover:text-sfx-cta dark:hover:shadow-sfx-glow-dark;
   }
 
   .surface-card {
-    @apply rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-card backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark sm:p-5;
+    @apply rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-card backdrop-blur-sm transition-[transform,box-shadow,border-color] duration-300 ease-sfx-smooth dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-card-dark motion-safe:hover:-translate-y-px motion-safe:hover:border-slate-300/90 motion-safe:hover:shadow-md dark:motion-safe:hover:border-slate-600/70 dark:motion-safe:hover:shadow-card-dark sm:p-5;
   }
 
   .surface-muted {
-    @apply rounded-xl border border-sfx/10 bg-sfx-soft/50 dark:border-slate-700/40 dark:bg-slate-800/40;
+    @apply rounded-xl border border-sfx/10 bg-sfx-soft/50 transition-[border-color,background-color,box-shadow] duration-300 ease-sfx-smooth dark:border-slate-700/40 dark:bg-slate-800/40 motion-safe:hover:border-sfx/25 dark:motion-safe:hover:border-slate-600/60;
   }
 }

@@ -265,7 +265,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   }, [zoneAgg, podAgg, kpis.notCentralized]);
 
   const selectClass =
-    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-sfx dark:focus:ring-sfx/25";
+    "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-[border-color,box-shadow,background-color] duration-300 ease-sfx-smooth hover:border-sfx/35 focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 motion-safe:hover:shadow-sm xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-sfx/45 dark:focus:border-sfx dark:focus:ring-sfx/25";
 
   const donutData = useMemo(
     () => {

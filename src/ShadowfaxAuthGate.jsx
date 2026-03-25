@@ -165,7 +165,7 @@ export function ShadowfaxAuthGate({ children }) {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-sfx-soft/80 px-4 dark:bg-slate-950">
-        <div className="surface-card w-full max-w-md border-sfx/20 text-center">
+        <div className="surface-card w-full max-w-md border-sfx/20 text-center motion-safe:animate-sfx-scale-in motion-reduce:animate-none">
           <h1 className="text-lg font-bold text-sfx-ink dark:text-slate-100">Shadowfax sign in</h1>
           <p className="mt-1.5 text-sm text-sfx-muted dark:text-slate-400">
             for shadowfax employees only
@@ -174,7 +174,7 @@ export function ShadowfaxAuthGate({ children }) {
             type="button"
             disabled={googleBusy}
             onClick={handleGoogleSignIn}
-            className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition-all duration-300 ease-sfx-smooth hover:border-sfx/30 hover:bg-sfx-soft/80 hover:shadow-md motion-safe:active:scale-[0.99] disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-sfx/40 dark:hover:bg-slate-800 dark:hover:shadow-sfx-glow-dark"
           >
             <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
               <path

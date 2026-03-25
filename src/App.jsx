@@ -1683,7 +1683,7 @@ export default function App() {
           </div>
           <div className="flex w-full max-w-full min-w-0 flex-col gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:justify-between">
             <nav
-              className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-sfx/15 bg-sfx-soft/90 p-1 shadow-inner dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
+              className="flex w-full min-w-0 items-stretch gap-1.5 rounded-xl border border-sfx/15 bg-sfx-soft/90 p-1 shadow-inner transition-[box-shadow,border-color] duration-300 ease-sfx-smooth dark:border-slate-800/80 dark:bg-slate-900/90 xs:w-auto xs:flex-none"
               role="tablist"
               aria-label="Main views"
             >
@@ -1693,10 +1693,10 @@ export default function App() {
                   role="tab"
                   aria-selected={activeTab === "dashboard"}
                   onClick={() => setActiveTab("dashboard")}
-                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "dashboard"
-                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
-                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
                   }`}
                 >
                   Dashboard
@@ -1706,10 +1706,10 @@ export default function App() {
                   role="tab"
                   aria-selected={activeTab === "data"}
                   onClick={() => setActiveTab("data")}
-                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "data"
-                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
-                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
                   }`}
                 >
                   Data Table
@@ -1719,10 +1719,10 @@ export default function App() {
                   role="tab"
                   aria-selected={activeTab === "camera"}
                   onClick={() => setActiveTab("camera")}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
                     activeTab === "camera"
-                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
-                      : "text-slate-600 hover:text-sfx dark:text-slate-400 dark:hover:text-sfx-cta"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
                   }`}
                 >
                   <span
@@ -1899,8 +1899,8 @@ export default function App() {
         }}
         className={
           activeTab === "data"
-            ? "w-full min-w-0 max-w-full overflow-x-hidden bg-sfx-soft/50 pb-[max(5rem,env(safe-area-inset-bottom,0px))] dark:bg-slate-950 sm:pb-16"
-            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 overflow-x-hidden bg-sfx-soft/40 px-3 py-4 pb-[max(5rem,env(safe-area-inset-bottom,0px))] sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
+            ? "w-full min-w-0 max-w-full overflow-x-hidden bg-sfx-soft/50 pb-[max(5rem,env(safe-area-inset-bottom,0px))] motion-safe:animate-sfx-fade-up motion-reduce:animate-none dark:bg-slate-950 sm:pb-16"
+            : "mx-auto w-full min-w-0 max-w-6xl space-y-4 overflow-x-hidden bg-sfx-soft/40 px-3 py-4 pb-[max(5rem,env(safe-area-inset-bottom,0px))] motion-safe:animate-sfx-fade-up motion-reduce:animate-none sm:space-y-5 sm:px-5 sm:py-6 sm:pb-16 md:px-6 dark:bg-transparent"
         }
       >
         {activeTab === "camera" ? (

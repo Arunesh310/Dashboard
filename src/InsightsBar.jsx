@@ -24,7 +24,7 @@ export function InsightsBar({
 
   return (
     <div
-      className="border-t border-slate-200/90 bg-slate-50/95 dark:border-slate-700/80 dark:bg-slate-900/80"
+      className="border-t border-slate-200/90 bg-slate-50/95 motion-safe:animate-sfx-fade-in motion-reduce:animate-none dark:border-slate-700/80 dark:bg-slate-900/80"
       data-html2pdf-ignore="true"
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-3 py-2 sm:px-5 lg:px-6">
