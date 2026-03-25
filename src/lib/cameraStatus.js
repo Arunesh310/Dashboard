@@ -135,17 +135,24 @@ export function buildCameraStatusRows(rawRows, cols) {
 
 /**
  * @param {CameraStatusRow[]} rows
- * @param {{ zone: string, pod: string, status: string }} filters
+ * @param {{ zone: string[] | string, pod: string[] | string, status: string[] | string }} filters
  */
 export function filterCameraStatusRows(rows, filters) {
-  const { zone, pod, status } = filters;
+  const normalize = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string" && value !== "all" && value) return [value];
+    return [];
+  };
+  const zone = new Set(normalize(filters.zone));
+  const pod = new Set(normalize(filters.pod));
+  const status = new Set(normalize(filters.status));
   return rows.filter((r) => {
-    if (zone !== "all" && r.zone !== zone) return false;
-    if (pod !== "all" && r.pod !== pod) return false;
-    if (status === "all") return true;
-    if (status === "online") return r.isOnline;
-    if (status === "offline") return r.isOffline;
-    return true;
+    if (zone.size > 0 && !zone.has(r.zone)) return false;
+    if (pod.size > 0 && !pod.has(r.pod)) return false;
+    if (status.size === 0) return true;
+    if (status.has("online") && r.isOnline) return true;
+    if (status.has("offline") && r.isOffline) return true;
+    return false;
   });
 }
 

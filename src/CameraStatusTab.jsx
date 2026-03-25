@@ -195,8 +195,8 @@ function ZoneOfflineBarChart({ labels, values }) {
 }
 
 function filterLabel(v, allLabel = "All") {
-  if (v === "all" || v === "") return allLabel;
-  return v || "—";
+  if (!Array.isArray(v) || v.length === 0) return allLabel;
+  return v.join(" | ");
 }
 
 export const CameraStatusTab = forwardRef(function CameraStatusTab(
@@ -245,7 +245,8 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
   const rcaAllView = useMemo(() => rcaAllBreakdown(filtered), [filtered]);
 
   const camCsv = useCallback(
-    (base, ...extra) => buildExportFilename(base, zoneFilter, podFilter, statusFilter, ...extra),
+    (base, ...extra) =>
+      buildExportFilename(base, ...zoneFilter, ...podFilter, ...statusFilter, ...extra),
     [zoneFilter, podFilter, statusFilter]
   );
 
@@ -266,6 +267,7 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
 
   const selectClass =
     "w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-[border-color,box-shadow,background-color] duration-300 ease-sfx-smooth hover:border-sfx/35 focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 motion-safe:hover:shadow-sm xs:min-w-[7.5rem] xs:w-auto sm:min-w-[8.5rem] dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-sfx/45 dark:focus:border-sfx dark:focus:ring-sfx/25";
+  const getSelected = (event) => Array.from(event.target.selectedOptions, (opt) => opt.value);
 
   const donutData = useMemo(
     () => {
@@ -477,12 +479,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span className="text-slate-600 dark:text-slate-400">Zone</span>
             <select
+              multiple
               value={zoneFilter}
-              onChange={(e) => setZoneFilter(e.target.value)}
+              onChange={(e) => setZoneFilter(getSelected(e))}
               className={selectClass}
               aria-label="Filter by zone"
             >
-              <option value="all">All</option>
               {zoneOptions.map((z) => (
                 <option key={z} value={z}>
                   {z || "—"}
@@ -493,12 +495,12 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span className="text-slate-600 dark:text-slate-400">POD</span>
             <select
+              multiple
               value={podFilter}
-              onChange={(e) => setPodFilter(e.target.value)}
+              onChange={(e) => setPodFilter(getSelected(e))}
               className={selectClass}
               aria-label="Filter by POD"
             >
-              <option value="all">All</option>
               {podOptions.map((p) => (
                 <option key={p} value={p}>
                   {p || "—"}
@@ -509,17 +511,20 @@ export const CameraStatusTab = forwardRef(function CameraStatusTab(
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span className="text-slate-600 dark:text-slate-400">Status</span>
             <select
+              multiple
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(getSelected(e))}
               className={selectClass}
               aria-label="Filter by status"
             >
-              <option value="all">All</option>
               <option value="online">Online</option>
               <option value="offline">Offline</option>
             </select>
           </label>
         </div>
+        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+          Tip: hold Ctrl/Cmd to select multiple values. No selection means all values.
+        </p>
       </div>
 
       {attentionStrip ? (

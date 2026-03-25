@@ -307,6 +307,20 @@ function readStoredUi() {
   }
 }
 
+function normalizeStoredMulti(raw) {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+  }
+  if (typeof raw === "string" && raw !== "all" && raw.trim()) return [raw.trim()];
+  return [];
+}
+
+function selectedValuesFromSelectEvent(event) {
+  return Array.from(event.target.selectedOptions, (opt) => opt.value);
+}
+
 function stripExportRows(rows, fields) {
   return rows.map((r) => {
     const o = {};
@@ -631,21 +645,33 @@ export default function App() {
   const [cameraStatusUpdatedAt, setCameraStatusUpdatedAt] = useState(null);
   const [cameraStatusError, setCameraStatusError] = useState("");
   const [camZoneFilter, setCamZoneFilter] = useState(() => {
-    const v = readStoredUi()?.camZoneFilter;
-    return typeof v === "string" ? v : "all";
+    return normalizeStoredMulti(readStoredUi()?.camZoneFilter);
   });
   const [camPodFilter, setCamPodFilter] = useState(() => {
-    const v = readStoredUi()?.camPodFilter;
-    return typeof v === "string" ? v : "all";
+    return normalizeStoredMulti(readStoredUi()?.camPodFilter);
   });
   const [camStatusFilter, setCamStatusFilter] = useState(() => {
-    const v = readStoredUi()?.camStatusFilter;
-    return typeof v === "string" ? v : "all";
+    return normalizeStoredMulti(readStoredUi()?.camStatusFilter);
   });
   const [dataTableSearch, setDataTableSearch] = useState("");
-  const [dataTableZone, setDataTableZone] = useState("all");
-  const [dataTableRca, setDataTableRca] = useState("all");
-  const [dataTableCategory, setDataTableCategory] = useState("all");
+  const [dataTableZone, setDataTableZone] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dataTableZone)
+  );
+  const [dataTableRca, setDataTableRca] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dataTableRca)
+  );
+  const [dataTableCategory, setDataTableCategory] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dataTableCategory)
+  );
+  const [dashZoneFilter, setDashZoneFilter] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashZoneFilter)
+  );
+  const [dashPodFilter, setDashPodFilter] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashPodFilter)
+  );
+  const [dashRcaFilter, setDashRcaFilter] = useState(() =>
+    normalizeStoredMulti(readStoredUi()?.dashRcaFilter)
+  );
   const [dataTablePage, setDataTablePage] = useState(0);
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -677,10 +703,6 @@ export default function App() {
     for (const r of cameraStatusRows) s.add(r.pod || "");
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [cameraStatusRows]);
-
-  useEffect(() => {
-    if (camStatusFilter === "unknown") setCamStatusFilter("all");
-  }, [camStatusFilter]);
 
   const dashCsvName = useCallback(
     (base, ...extra) => buildExportFilename(base, filter, ...extra),
@@ -717,12 +739,30 @@ export default function App() {
           camZoneFilter,
           camPodFilter,
           camStatusFilter,
+          dashZoneFilter,
+          dashPodFilter,
+          dashRcaFilter,
+          dataTableZone,
+          dataTableRca,
+          dataTableCategory,
         })
       );
     } catch {
       /* ignore quota / private mode */
     }
-  }, [activeTab, filter, camZoneFilter, camPodFilter, camStatusFilter]);
+  }, [
+    activeTab,
+    filter,
+    camZoneFilter,
+    camPodFilter,
+    camStatusFilter,
+    dashZoneFilter,
+    dashPodFilter,
+    dashRcaFilter,
+    dataTableZone,
+    dataTableRca,
+    dataTableCategory,
+  ]);
 
   useEffect(() => {
     ChartJS.defaults.color = isDark ? "#94a3b8" : "#475569";
@@ -766,10 +806,60 @@ export default function App() {
     [normalizedRows, colMapSafe, fields]
   );
 
-  const filtered = useMemo(
-    () => applyFilter(annotated, filter),
-    [annotated, filter]
-  );
+  const dashboardZoneOptions = useMemo(() => {
+    const z = colMapSafe.zone;
+    if (!z) return [];
+    const set = new Set();
+    for (const r of annotated) {
+      const v = String(r[z] ?? "").trim();
+      if (v) set.add(canonicalizeZoneLabel(v));
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [annotated, colMapSafe.zone]);
+
+  const dashboardPodOptions = useMemo(() => {
+    const p = colMapSafe.poc;
+    if (!p) return [];
+    const set = new Set();
+    for (const r of annotated) {
+      const v = String(r[p] ?? "").trim();
+      if (v) set.add(v);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [annotated, colMapSafe.poc]);
+
+  const dashboardRcaOptions = useMemo(() => {
+    const set = new Set();
+    for (const r of annotated) {
+      const v = getRcaValue(r, colMapSafe, fields).trim();
+      if (v) set.add(v);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [annotated, colMapSafe, fields]);
+
+  const filtered = useMemo(() => {
+    const issueFiltered = applyFilter(annotated, filter);
+    const zoneSet = new Set(dashZoneFilter);
+    const podSet = new Set(dashPodFilter);
+    const rcaSet = new Set(dashRcaFilter);
+    const z = colMapSafe.zone;
+    const p = colMapSafe.poc;
+    return issueFiltered.filter((r) => {
+      if (zoneSet.size > 0) {
+        const zone = z ? canonicalizeZoneLabel(String(r[z] ?? "").trim()) : "";
+        if (!zoneSet.has(zone)) return false;
+      }
+      if (podSet.size > 0) {
+        const pod = p ? String(r[p] ?? "").trim() : "";
+        if (!podSet.has(pod)) return false;
+      }
+      if (rcaSet.size > 0) {
+        const rv = getRcaValue(r, colMapSafe, fields).trim();
+        if (!rcaSet.has(rv)) return false;
+      }
+      return true;
+    });
+  }, [annotated, filter, dashZoneFilter, dashPodFilter, dashRcaFilter, colMapSafe, fields]);
 
   const counts = useMemo(() => countByKind(annotated), [annotated]);
 
@@ -1007,15 +1097,15 @@ export default function App() {
     const h = colMapSafe.hub;
     const z = colMapSafe.zone;
     return annotated.filter((r) => {
-      if (dataTableZone !== "all") {
+      if (dataTableZone.length > 0) {
         const zv = z ? String(r[z] ?? "").trim() : "";
-        if (canonicalizeZoneLabel(zv) !== dataTableZone) return false;
+        if (!dataTableZone.includes(canonicalizeZoneLabel(zv))) return false;
       }
-      if (dataTableRca !== "all") {
+      if (dataTableRca.length > 0) {
         const rv = getRcaValue(r, colMapSafe, fields).trim();
-        if (rv !== dataTableRca) return false;
+        if (!dataTableRca.includes(rv)) return false;
       }
-      if (dataTableCategory !== "all" && r.__kind !== dataTableCategory) return false;
+      if (dataTableCategory.length > 0 && !dataTableCategory.includes(r.__kind)) return false;
       if (q) {
         const manifestMatch = m && String(r[m] ?? "").toLowerCase().includes(q);
         const hubMatch = h && String(r[h] ?? "").toLowerCase().includes(q);
@@ -1130,9 +1220,12 @@ export default function App() {
     setFileName(name);
     setFilter("all");
     setDataTableSearch("");
-    setDataTableZone("all");
-    setDataTableRca("all");
-    setDataTableCategory("all");
+    setDataTableZone([]);
+    setDataTableRca([]);
+    setDataTableCategory([]);
+    setDashZoneFilter([]);
+    setDashPodFilter([]);
+    setDashRcaFilter([]);
     setDataTablePage(0);
   }, []);
 
@@ -1172,9 +1265,9 @@ export default function App() {
     setCameraStatusRows(rows);
     setCameraStatusFileName(fileName);
     setCameraStatusUpdatedAt(updatedAtIso);
-    setCamZoneFilter("all");
-    setCamPodFilter("all");
-    setCamStatusFilter("all");
+    setCamZoneFilter([]);
+    setCamPodFilter([]);
+    setCamStatusFilter([]);
     setCameraStatusError("");
     saveCameraBaseline(rows, fileName);
     return true;
@@ -1287,9 +1380,12 @@ export default function App() {
     setError("");
     setFilter("all");
     setDataTableSearch("");
-    setDataTableZone("all");
-    setDataTableRca("all");
-    setDataTableCategory("all");
+    setDataTableZone([]);
+    setDataTableRca([]);
+    setDataTableCategory([]);
+    setDashZoneFilter([]);
+    setDashPodFilter([]);
+    setDashRcaFilter([]);
     setDataTablePage(0);
     setActiveTab("dashboard");
   }, []);
@@ -1304,9 +1400,9 @@ export default function App() {
     setCameraStatusFileName("");
     setCameraStatusUpdatedAt(null);
     setCameraStatusError("");
-    setCamZoneFilter("all");
-    setCamPodFilter("all");
-    setCamStatusFilter("all");
+    setCamZoneFilter([]);
+    setCamPodFilter([]);
+    setCamStatusFilter([]);
   }, []);
 
   const handleExportPdf = useCallback(async () => {
@@ -1431,12 +1527,7 @@ export default function App() {
       status: camStatusFilter,
     });
     downloadCsv(
-      buildExportFilename(
-        "camera-status-detailed",
-        camZoneFilter,
-        camPodFilter,
-        camStatusFilter
-      ),
+      buildExportFilename("camera-status-detailed", ...camZoneFilter, ...camPodFilter, ...camStatusFilter),
       rowsToDetailExport(rows),
       CAMERA_DETAIL_FIELDS
     );
@@ -2010,6 +2101,62 @@ export default function App() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="surface-card">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-slate-600 dark:text-slate-400">Zone (multi-select)</span>
+                  <select
+                    multiple
+                    value={dashZoneFilter}
+                    onChange={(e) => setDashZoneFilter(selectedValuesFromSelectEvent(e))}
+                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
+                    aria-label="Filter dashboard by zone"
+                  >
+                    {dashboardZoneOptions.map((z) => (
+                      <option key={z} value={z}>
+                        {z}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-slate-600 dark:text-slate-400">POD (multi-select)</span>
+                  <select
+                    multiple
+                    value={dashPodFilter}
+                    onChange={(e) => setDashPodFilter(selectedValuesFromSelectEvent(e))}
+                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
+                    aria-label="Filter dashboard by POD"
+                  >
+                    {dashboardPodOptions.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-slate-600 dark:text-slate-400">RCA (multi-select)</span>
+                  <select
+                    multiple
+                    value={dashRcaFilter}
+                    onChange={(e) => setDashRcaFilter(selectedValuesFromSelectEvent(e))}
+                    className="w-full min-w-0 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition-colors focus:border-sfx focus:outline-none focus:ring-2 focus:ring-sfx/30 dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-200"
+                    aria-label="Filter dashboard by RCA"
+                  >
+                    {dashboardRcaOptions.map((r) => (
+                      <option key={r} value={r}>
+                        {r.length > 56 ? `${r.slice(0, 54)}…` : r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Tip: hold Ctrl/Cmd to choose multiple values. No selection means all values.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
