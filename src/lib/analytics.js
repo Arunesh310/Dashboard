@@ -137,6 +137,21 @@ export function applyFilter(rows, filter) {
   return rows.filter((r) => r.__kind === filter);
 }
 
+/**
+ * Count distinct non-empty manifest (bag) IDs in rows — use for KPIs when rows can repeat per bag.
+ * @param {Record<string, unknown>[]} rows
+ * @param {string | null} manifestCol
+ */
+export function countUniqueManifests(rows, manifestCol) {
+  if (!manifestCol) return rows.length;
+  const s = new Set();
+  for (const r of rows) {
+    const k = String(r[manifestCol] ?? "").trim();
+    if (k) s.add(k);
+  }
+  return s.size;
+}
+
 export function countByKind(rows) {
   const m = {
     pending: 0,

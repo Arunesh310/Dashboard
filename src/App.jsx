@@ -21,6 +21,7 @@ import {
   annotateRows,
   applyMovementFilter,
   countByKind,
+  countUniqueManifests,
   aggregateByField,
   canonicalizeZoneLabel,
   aggregateRca,
@@ -921,21 +922,23 @@ export default function App() {
 
   const kpis = useMemo(() => {
     const total = uniqueManifestCountFiltered ?? filtered.length;
-    const proper = countsFiltered.proper_bagging;
-    const partial = countsFiltered.partial_bagging;
-    const fraud = countsFiltered.lm_fraud;
-    const camera = countsFiltered.camera_issues;
-    const noFootage = countsFiltered.no_footage;
-    const pending = countsFiltered.pending;
+    const mc = colMapSafe.manifest;
+    const u = (rows) => (mc ? countUniqueManifests(rows, mc) : rows.length);
+    const proper = u(filtered.filter((r) => r.__kind === "proper_bagging"));
+    const partial = u(filtered.filter((r) => r.__kind === "partial_bagging"));
+    const fraud = u(filtered.filter((r) => r.__kind === "lm_fraud"));
+    const camera = u(filtered.filter((r) => r.__kind === "camera_issues"));
+    const noFootage = u(filtered.filter((r) => r.__kind === "no_footage"));
+    const pending = u(filtered.filter((r) => r.__kind === "pending"));
     const issueLike =
       partial +
       fraud +
       camera +
       noFootage +
-      countsFiltered.offline +
-      countsFiltered.multiple_bagging +
-      countsFiltered.unable_to_validate +
-      countsFiltered.other;
+      u(filtered.filter((r) => r.__kind === "offline")) +
+      u(filtered.filter((r) => r.__kind === "multiple_bagging")) +
+      u(filtered.filter((r) => r.__kind === "unable_to_validate")) +
+      u(filtered.filter((r) => r.__kind === "other"));
     return {
       total,
       proper,
@@ -948,39 +951,46 @@ export default function App() {
       properRate: total ? ((proper / total) * 100).toFixed(1) : "0",
       issueRate: total ? ((issueLike / total) * 100).toFixed(1) : "0",
     };
-  }, [filtered, countsFiltered, uniqueManifestCountFiltered]);
+  }, [filtered, uniqueManifestCountFiltered, colMapSafe.manifest]);
 
   const revSplitKpis = useMemo(() => {
     const rows = revScopedRows;
+    const mc = colMapSafe.manifest;
+    const u = (r) => (mc ? countUniqueManifests(r, mc) : r.length);
     return {
-      pending: rows.filter((r) => r.__kind === "pending").length,
-      partial: rows.filter((r) => r.__kind === "partial_bagging").length,
-      fraud: rows.filter((r) => r.__kind === "lm_fraud").length,
-      camera: rows.filter((r) => r.__kind === "camera_issues").length,
-      proper: rows.filter((r) => r.__kind === "proper_bagging").length,
+      pending: u(rows.filter((r) => r.__kind === "pending")),
+      partial: u(rows.filter((r) => r.__kind === "partial_bagging")),
+      fraud: u(rows.filter((r) => r.__kind === "lm_fraud")),
+      camera: u(rows.filter((r) => r.__kind === "camera_issues")),
+      proper: u(rows.filter((r) => r.__kind === "proper_bagging")),
     };
-  }, [revScopedRows]);
+  }, [revScopedRows, colMapSafe.manifest]);
 
   const fwdSplitKpis = useMemo(() => {
     const rows = fwdScopedRows;
+    const mc = colMapSafe.manifest;
+    const u = (r) => (mc ? countUniqueManifests(r, mc) : r.length);
     return {
-      pending: rows.filter((r) => r.__kind === "pending").length,
-      shortFound: rows.filter(isFwdShortFoundRow).length,
-      noShort: rows.filter(isFwdNoShortRow).length,
-      camera: rows.filter(isFwdCameraRow).length,
-      proper: rows.filter((r) => r.__kind === "proper_bagging").length,
+      pending: u(rows.filter((r) => r.__kind === "pending")),
+      shortFound: u(rows.filter(isFwdShortFoundRow)),
+      noShort: u(rows.filter(isFwdNoShortRow)),
+      camera: u(rows.filter(isFwdCameraRow)),
+      proper: u(rows.filter((r) => r.__kind === "proper_bagging")),
+      hubRisk: u(rows.filter((r) => isFwdHubRiskRow(r))),
     };
-  }, [fwdScopedRows]);
+  }, [fwdScopedRows, colMapSafe.manifest]);
 
   const fwdOnlyKpis = useMemo(() => {
     if (!hasMovementColumn || movementFilter !== "fwd") return null;
+    const mc = colMapSafe.manifest;
+    const u = (rows) => (mc ? countUniqueManifests(rows, mc) : rows.length);
     return {
-      shortFound: filtered.filter(isFwdShortFoundRow).length,
-      noShort: filtered.filter(isFwdNoShortRow).length,
-      camera: filtered.filter(isFwdCameraRow).length,
-      hubRisk: filtered.filter(isFwdHubRiskRow).length,
+      shortFound: u(filtered.filter(isFwdShortFoundRow)),
+      noShort: u(filtered.filter(isFwdNoShortRow)),
+      camera: u(filtered.filter(isFwdCameraRow)),
+      hubRisk: u(filtered.filter((r) => isFwdHubRiskRow(r))),
     };
-  }, [filtered, hasMovementColumn, movementFilter]);
+  }, [filtered, hasMovementColumn, movementFilter, colMapSafe.manifest]);
 
   const weeklyWeekKeys = useMemo(() => {
     const dc = colMapSafe.date;
@@ -2289,310 +2299,7 @@ export default function App() {
 
         {annotated.length ? (
           <>
-            {hasMovementColumn && movementFilter === "all" ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
-                  <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                    Reverse (REV)
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Pendency and reverse RCA focus (scope below applies).
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[
-                      {
-                        label: "Pendency",
-                        n: revScopedRows.filter((r) => r.__kind === "pending").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("rev-pendency"),
-                            stripExportRows(
-                              revScopedRows.filter((r) => r.__kind === "pending"),
-                              exportFields
-                            ),
-                            exportFields
-                          ),
-                        tone: "text-slate-800 dark:text-slate-100",
-                      },
-                      {
-                        label: "LM Fraud",
-                        n: issueSlice(revScopedRows, "all", "lm_fraud").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("rev-lm-fraud"),
-                            stripExportRows(issueSlice(revScopedRows, "all", "lm_fraud"), exportFields),
-                            exportFields
-                          ),
-                        tone: "text-red-700 dark:text-red-300",
-                      },
-                      {
-                        label: "Partial bagging",
-                        n: issueSlice(revScopedRows, "all", "partial_bagging").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("rev-partial-bagging"),
-                            stripExportRows(
-                              issueSlice(revScopedRows, "all", "partial_bagging"),
-                              exportFields
-                            ),
-                            exportFields
-                          ),
-                        tone: "text-amber-800 dark:text-amber-200",
-                      },
-                      {
-                        label: "Camera",
-                        n: issueSlice(revScopedRows, "all", "camera_issues").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("rev-camera"),
-                            stripExportRows(
-                              issueSlice(revScopedRows, "all", "camera_issues"),
-                              exportFields
-                            ),
-                            exportFields
-                          ),
-                        tone: "text-violet-700 dark:text-violet-300",
-                      },
-                    ].map((x) => (
-                      <button
-                        key={x.label}
-                        type="button"
-                        onClick={x.dl}
-                        className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left transition hover:border-sfx/40 hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/50 dark:hover:border-sfx/35"
-                      >
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {x.label}
-                        </p>
-                        <p className={`mt-0.5 text-lg font-bold tabular-nums ${x.tone}`}>
-                          {x.n.toLocaleString()}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="surface-card border-l-4 border-l-amber-500 dark:border-l-amber-400">
-                  <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                    Forward (FWD)
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Pendency · short found · no short found · camera (same logic as KPI cards).
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {[
-                      {
-                        label: "Pendency",
-                        n: fwdScopedRows.filter((r) => r.__kind === "pending").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("fwd-pendency"),
-                            stripExportRows(
-                              fwdScopedRows.filter((r) => r.__kind === "pending"),
-                              exportFields
-                            ),
-                            exportFields
-                          ),
-                        tone: "text-slate-800 dark:text-slate-100",
-                      },
-                      {
-                        label: "Short found",
-                        n: fwdScopedRows.filter(isFwdShortFoundRow).length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("fwd-short-found-hero"),
-                            stripExportRows(fwdScopedRows.filter(isFwdShortFoundRow), exportFields),
-                            exportFields
-                          ),
-                        tone: "text-amber-800 dark:text-amber-200",
-                      },
-                      {
-                        label: "No short found",
-                        n: fwdScopedRows.filter(isFwdNoShortRow).length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("fwd-no-short-hero"),
-                            stripExportRows(fwdScopedRows.filter(isFwdNoShortRow), exportFields),
-                            exportFields
-                          ),
-                        tone: "text-red-700 dark:text-red-300",
-                      },
-                      {
-                        label: "Camera issues",
-                        n: issueSlice(fwdScopedRows, "all", "camera_issues").length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("fwd-camera"),
-                            stripExportRows(
-                              issueSlice(fwdScopedRows, "all", "camera_issues"),
-                              exportFields
-                            ),
-                            exportFields
-                          ),
-                        tone: "text-violet-700 dark:text-violet-300",
-                      },
-                      {
-                        label: "Hub risk (all)",
-                        n: fwdScopedRows.filter((r) => isFwdHubRiskRow(r)).length,
-                        dl: () =>
-                          downloadCsv(
-                            dashCsvName("fwd-hub-risk"),
-                            stripExportRows(fwdScopedRows.filter((r) => isFwdHubRiskRow(r)), exportFields),
-                            exportFields
-                          ),
-                        tone: "text-orange-800 dark:text-orange-200",
-                      },
-                    ].map((x) => (
-                      <button
-                        key={x.label}
-                        type="button"
-                        onClick={x.dl}
-                        className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left transition hover:border-amber-400/50 hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/50 dark:hover:border-amber-500/40"
-                      >
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {x.label}
-                        </p>
-                        <p className={`mt-0.5 text-lg font-bold tabular-nums ${x.tone}`}>
-                          {x.n.toLocaleString()}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : hasMovementColumn && movementFilter === "rev" ? (
-              <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Showing: Reverse (REV)
-                </h3>
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    {
-                      label: "Pendency",
-                      n: filtered.filter((r) => r.__kind === "pending").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("pendency-rev"),
-                          stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "LM Fraud",
-                      n: issueSlice(filtered, "all", "lm_fraud").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("lm-fraud-rev"),
-                          stripExportRows(issueSlice(filtered, "all", "lm_fraud"), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "Partial bagging",
-                      n: issueSlice(filtered, "all", "partial_bagging").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("partial-rev"),
-                          stripExportRows(issueSlice(filtered, "all", "partial_bagging"), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "Camera",
-                      n: issueSlice(filtered, "all", "camera_issues").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("camera-rev"),
-                          stripExportRows(issueSlice(filtered, "all", "camera_issues"), exportFields),
-                          exportFields
-                        ),
-                    },
-                  ].map((x) => (
-                    <button
-                      key={x.label}
-                      type="button"
-                      onClick={x.dl}
-                      className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left text-sm font-semibold text-slate-800 transition hover:border-sfx/40 dark:border-slate-700/60 dark:bg-slate-800/50 dark:text-slate-100"
-                    >
-                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        {x.label}
-                      </span>
-                      <span className="mt-0.5 block text-xl tabular-nums">{x.n.toLocaleString()}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : hasMovementColumn && movementFilter === "fwd" ? (
-              <div className="surface-card border-l-4 border-l-amber-500 dark:border-l-amber-400">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Showing: Forward (FWD)
-                </h3>
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  {[
-                    {
-                      label: "Pendency",
-                      n: filtered.filter((r) => r.__kind === "pending").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("pendency-fwd"),
-                          stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "Short found",
-                      n: filtered.filter(isFwdShortFoundRow).length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("short-found-fwd"),
-                          stripExportRows(filtered.filter(isFwdShortFoundRow), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "No short found",
-                      n: filtered.filter(isFwdNoShortRow).length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("no-short-fwd"),
-                          stripExportRows(filtered.filter(isFwdNoShortRow), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "Camera issues",
-                      n: issueSlice(filtered, "all", "camera_issues").length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("camera-fwd"),
-                          stripExportRows(issueSlice(filtered, "all", "camera_issues"), exportFields),
-                          exportFields
-                        ),
-                    },
-                    {
-                      label: "Hub risk (all)",
-                      n: filtered.filter((r) => isFwdHubRiskRow(r)).length,
-                      dl: () =>
-                        downloadCsv(
-                          dashCsvName("hub-risk-fwd"),
-                          stripExportRows(filtered.filter((r) => isFwdHubRiskRow(r)), exportFields),
-                          exportFields
-                        ),
-                    },
-                  ].map((x) => (
-                    <button
-                      key={x.label}
-                      type="button"
-                      onClick={x.dl}
-                      className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left text-sm font-semibold text-slate-800 transition hover:border-amber-400/50 dark:border-slate-700/60 dark:bg-slate-800/50 dark:text-slate-100"
-                    >
-                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        {x.label}
-                      </span>
-                      <span className="mt-0.5 block text-xl tabular-nums">{x.n.toLocaleString()}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
+            {!hasMovementColumn ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-3 rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50 to-white p-4 shadow-card dark:border-red-500/20 dark:from-red-950/50 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
@@ -2676,7 +2383,7 @@ export default function App() {
                   />
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="surface-card filter-shell">
               <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
@@ -2761,10 +2468,37 @@ export default function App() {
                     {kpis.total.toLocaleString()}
                   </p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    {colMapSafe.manifest
-                      ? `Unique ${colMapSafe.manifest} — compare REV vs FWD panels below`
-                      : "Total rows — compare REV vs FWD panels below"}
+                    {colMapSafe.manifest ? (
+                      <>
+                        Unique bags ({colMapSafe.manifest}) in current filters — closed RCA rows excluded. KPIs below
+                        count each bag once per category.
+                      </>
+                    ) : (
+                      "Total rows in current filters — compare REV vs FWD panels below"
+                    )}
                   </p>
+                  {colMapSafe.manifest ? (
+                    <p className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-700 dark:border-slate-600/60 dark:bg-slate-800/50 dark:text-slate-300">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">Pendency (no RCA)</span> — unique
+                      bags: REV {revSplitKpis.pending.toLocaleString()} + FWD {fwdSplitKpis.pending.toLocaleString()} ={" "}
+                      <span className="tabular-nums font-semibold">
+                        {(revSplitKpis.pending + fwdSplitKpis.pending).toLocaleString()}
+                      </span>
+                      {revSplitKpis.pending + fwdSplitKpis.pending !== kpis.pending ? (
+                        <>
+                          {" "}
+                          · total deduped across movements{" "}
+                          <span className="tabular-nums font-semibold">{kpis.pending.toLocaleString()}</span>
+                        </>
+                      ) : (
+                        <>
+                          {" "}
+                          (matches total pendency{" "}
+                          <span className="tabular-nums font-semibold">{kpis.pending.toLocaleString()}</span>)
+                        </>
+                      )}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
@@ -2776,7 +2510,7 @@ export default function App() {
                         {
                           title: "Pendency",
                           value: revSplitKpis.pending,
-                          sub: "No RCA",
+                          sub: "Unique bags, no RCA",
                           icon: "⏳",
                           tone: "text-slate-800 dark:text-slate-100",
                           dl: () =>
@@ -2858,12 +2592,12 @@ export default function App() {
                     <h3 className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
                       Forward (FWD)
                     </h3>
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                       {[
                         {
                           title: "Pendency",
                           value: fwdSplitKpis.pending,
-                          sub: "No RCA",
+                          sub: "Unique bags, no RCA",
                           tone: "text-slate-800 dark:text-slate-100",
                           dl: () =>
                             downloadCsv(
@@ -2908,6 +2642,18 @@ export default function App() {
                             downloadCsv(
                               dashCsvName("fwd-camera-kpi"),
                               stripExportRows(fwdScopedRows.filter(isFwdCameraRow), exportFields),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Hub risk",
+                          value: fwdSplitKpis.hubRisk,
+                          sub: "Camera + short flags",
+                          tone: "text-orange-700 dark:text-orange-300",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-hub-risk-kpi"),
+                              stripExportRows(fwdScopedRows.filter((r) => isFwdHubRiskRow(r)), exportFields),
                               exportFields
                             ),
                         },
