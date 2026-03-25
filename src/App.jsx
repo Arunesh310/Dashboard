@@ -958,7 +958,10 @@ export default function App() {
     const mc = colMapSafe.manifest;
     const u = (r) => (mc ? countUniqueManifests(r, mc) : r.length);
     return {
-      pending: u(rows.filter((r) => r.__kind === "pending")),
+      /** All unique bags for REV (every RCA status). */
+      pendency: u(rows),
+      /** Unique bags with no RCA / empty remarks. */
+      pendingNoRca: u(rows.filter((r) => r.__kind === "pending")),
       partial: u(rows.filter((r) => r.__kind === "partial_bagging")),
       fraud: u(rows.filter((r) => r.__kind === "lm_fraud")),
       camera: u(rows.filter((r) => r.__kind === "camera_issues")),
@@ -971,7 +974,8 @@ export default function App() {
     const mc = colMapSafe.manifest;
     const u = (r) => (mc ? countUniqueManifests(r, mc) : r.length);
     return {
-      pending: u(rows.filter((r) => r.__kind === "pending")),
+      pendency: u(rows),
+      pendingNoRca: u(rows.filter((r) => r.__kind === "pending")),
       shortFound: u(rows.filter(isFwdShortFoundRow)),
       noShort: u(rows.filter(isFwdNoShortRow)),
       camera: u(rows.filter(isFwdCameraRow)),
@@ -2462,7 +2466,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="surface-card">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    In scope (all movements)
+                    Pendency (all movements)
                   </p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
                     {kpis.total.toLocaleString()}
@@ -2470,8 +2474,8 @@ export default function App() {
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                     {colMapSafe.manifest ? (
                       <>
-                        Unique bags ({colMapSafe.manifest}) in current filters — closed RCA rows excluded. KPIs below
-                        count each bag once per category.
+                        Unique bags ({colMapSafe.manifest}) in current filters — includes blanks, partial bagging, fraud,
+                        camera, etc. Closed RCA rows excluded. Each bag counted once.
                       </>
                     ) : (
                       "Total rows in current filters — compare REV vs FWD panels below"
@@ -2479,21 +2483,22 @@ export default function App() {
                   </p>
                   {colMapSafe.manifest ? (
                     <p className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs text-slate-700 dark:border-slate-600/60 dark:bg-slate-800/50 dark:text-slate-300">
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">Pendency (no RCA)</span> — unique
-                      bags: REV {revSplitKpis.pending.toLocaleString()} + FWD {fwdSplitKpis.pending.toLocaleString()} ={" "}
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">Pending (no RCA)</span> — unique
+                      bags: REV {revSplitKpis.pendingNoRca.toLocaleString()} + FWD{" "}
+                      {fwdSplitKpis.pendingNoRca.toLocaleString()} ={" "}
                       <span className="tabular-nums font-semibold">
-                        {(revSplitKpis.pending + fwdSplitKpis.pending).toLocaleString()}
+                        {(revSplitKpis.pendingNoRca + fwdSplitKpis.pendingNoRca).toLocaleString()}
                       </span>
-                      {revSplitKpis.pending + fwdSplitKpis.pending !== kpis.pending ? (
+                      {revSplitKpis.pendingNoRca + fwdSplitKpis.pendingNoRca !== kpis.pending ? (
                         <>
                           {" "}
-                          · total deduped across movements{" "}
+                          · deduped across movements{" "}
                           <span className="tabular-nums font-semibold">{kpis.pending.toLocaleString()}</span>
                         </>
                       ) : (
                         <>
                           {" "}
-                          (matches total pendency{" "}
+                          (matches{" "}
                           <span className="tabular-nums font-semibold">{kpis.pending.toLocaleString()}</span>)
                         </>
                       )}
@@ -2505,17 +2510,30 @@ export default function App() {
                     <h3 className="text-xs font-bold uppercase tracking-wide text-sfx dark:text-sfx-cta">
                       Reverse (REV)
                     </h3>
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                       {[
                         {
                           title: "Pendency",
-                          value: revSplitKpis.pending,
-                          sub: "Unique bags, no RCA",
+                          value: revSplitKpis.pendency,
+                          sub: "All unique bags (REV)",
+                          icon: "📊",
+                          tone: "text-slate-800 dark:text-slate-100",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("rev-pendency-total-kpi"),
+                              stripExportRows(revScopedRows, exportFields),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Pending",
+                          value: revSplitKpis.pendingNoRca,
+                          sub: "No RCA / empty remarks",
                           icon: "⏳",
                           tone: "text-slate-800 dark:text-slate-100",
                           dl: () =>
                             downloadCsv(
-                              dashCsvName("rev-pendency-kpi"),
+                              dashCsvName("rev-pending-no-rca-kpi"),
                               stripExportRows(
                                 revScopedRows.filter((r) => r.__kind === "pending"),
                                 exportFields
@@ -2592,16 +2610,28 @@ export default function App() {
                     <h3 className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
                       Forward (FWD)
                     </h3>
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                       {[
                         {
                           title: "Pendency",
-                          value: fwdSplitKpis.pending,
-                          sub: "Unique bags, no RCA",
+                          value: fwdSplitKpis.pendency,
+                          sub: "All unique bags (FWD)",
                           tone: "text-slate-800 dark:text-slate-100",
                           dl: () =>
                             downloadCsv(
-                              dashCsvName("fwd-pendency-kpi"),
+                              dashCsvName("fwd-pendency-total-kpi"),
+                              stripExportRows(fwdScopedRows, exportFields),
+                              exportFields
+                            ),
+                        },
+                        {
+                          title: "Pending",
+                          value: fwdSplitKpis.pendingNoRca,
+                          sub: "No RCA / empty remarks",
+                          tone: "text-slate-700 dark:text-slate-200",
+                          dl: () =>
+                            downloadCsv(
+                              dashCsvName("fwd-pending-no-rca-kpi"),
                               stripExportRows(
                                 fwdScopedRows.filter((r) => r.__kind === "pending"),
                                 exportFields
@@ -2680,25 +2710,25 @@ export default function App() {
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {[
                   {
-                    title: "Total Records",
+                    title: "Pendency",
                     value: kpis.total,
                     sub: colMapSafe.manifest
-                      ? `Unique ${colMapSafe.manifest} · Forward only`
-                      : "Forward rows in view",
+                      ? `All unique bags (FWD) · ${colMapSafe.manifest}`
+                      : "All forward rows in view",
                     icon: "📊",
                     tone: "text-sfx dark:text-sfx-cta",
                     dl: () =>
                       downloadCsv(dashCsvName("fwd-all-records"), stripExportRows(filtered, exportFields), exportFields),
                   },
                   {
-                    title: "Pendency (no RCA)",
+                    title: "Pending",
                     value: kpis.pending,
-                    sub: "Awaiting root cause",
+                    sub: "No RCA / empty remarks",
                     icon: "⏳",
                     tone: "text-slate-700 dark:text-slate-200",
                     dl: () =>
                       downloadCsv(
-                        dashCsvName("fwd-pendency-no-rca"),
+                        dashCsvName("fwd-pending-no-rca"),
                         stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
                         exportFields
                       ),
@@ -2769,7 +2799,7 @@ export default function App() {
                           r.__kind
                         )
                       ).length,
-                    sub: "Excludes pendency & proper",
+                    sub: "Excludes pending (no RCA) & proper",
                     icon: "✕",
                     tone: "text-slate-800 dark:text-slate-100",
                     dl: () =>
@@ -2819,25 +2849,25 @@ export default function App() {
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {[
                   {
-                    title: "Total Records",
+                    title: "Pendency",
                     value: kpis.total,
                     sub: colMapSafe.manifest
-                      ? `Unique ${colMapSafe.manifest} in current view`
-                      : "Rows in current view",
+                      ? `All unique bags in current view · ${colMapSafe.manifest}`
+                      : "All rows in current view",
                     icon: "📊",
                     tone: "text-sfx dark:text-sfx-cta",
                     dl: () =>
                       downloadCsv(dashCsvName("all-records"), stripExportRows(filtered, exportFields), exportFields),
                   },
                   {
-                    title: "Pendency (no RCA)",
+                    title: "Pending",
                     value: kpis.pending,
-                    sub: "Awaiting root cause",
+                    sub: "No RCA / empty remarks",
                     icon: "⏳",
                     tone: "text-slate-700 dark:text-slate-200",
                     dl: () =>
                       downloadCsv(
-                        dashCsvName("pendency-no-rca"),
+                        dashCsvName("pending-no-rca"),
                         stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
                         exportFields
                       ),

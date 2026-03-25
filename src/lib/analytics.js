@@ -41,7 +41,7 @@ export function classifyIssue(text) {
 
 /** Human-readable labels for classified issue kind (Data Table category filter). */
 export const ISSUE_KIND_LABELS = {
-  pending: "Pendency (no RCA)",
+  pending: "Pending (no RCA)",
   lm_fraud: "LM Fraud",
   partial_bagging: "Partial Bagging",
   proper_bagging: "Proper Bagging",
