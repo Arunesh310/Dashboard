@@ -1,47 +1,10 @@
-import { useMemo, useState } from "react";
-import { normalizeAlertThresholds, saveAlertThresholds } from "./lib/alertThresholds.js";
-
-function Chevron({ open }) {
-  return (
-    <svg
-      className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden
-    >
-      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function InsightsBar({
-  dashboardAlerts,
-  cameraAlerts,
-  thresholds,
-  onThresholdsChange,
   dashboardDiff,
   cameraDiff,
   onDismissDashboardDiff,
   onDismissCameraDiff,
 }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const allAlerts = useMemo(
-    () => [...dashboardAlerts, ...cameraAlerts],
-    [dashboardAlerts, cameraAlerts]
-  );
-
-  const updateThreshold = (patch) => {
-    const next = normalizeAlertThresholds({
-      ...thresholds,
-      ...patch,
-      enabled: { ...thresholds.enabled, ...(patch.enabled || {}) },
-    });
-    onThresholdsChange(next);
-    saveAlertThresholds(next);
-  };
+  if (!dashboardDiff && !cameraDiff) return null;
 
   return (
     <div
@@ -49,30 +12,6 @@ export function InsightsBar({
       data-html2pdf-ignore="true"
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-3 py-2 sm:px-5 lg:px-6">
-        {allAlerts.length > 0 ? (
-          <div
-            className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/35 dark:text-amber-50"
-            role="status"
-          >
-            <span className="inline-flex items-center gap-1 font-bold uppercase tracking-wide text-amber-900 dark:text-amber-200">
-              <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-600 px-1 text-[10px] text-white dark:bg-amber-500">
-                {allAlerts.length}
-              </span>
-              Alerts
-            </span>
-            <ul className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center">
-              {allAlerts.map((a) => (
-                <li
-                  key={a.id}
-                  className="rounded-lg bg-white/80 px-2 py-1 text-[11px] font-medium text-amber-950 ring-1 ring-amber-200/80 dark:bg-slate-900/60 dark:text-amber-100 dark:ring-amber-800/60"
-                >
-                  {a.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
         {dashboardDiff ? (
           <div className="flex flex-col gap-2 rounded-xl border border-sky-200/90 bg-sky-50/90 px-3 py-2 text-xs text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1 space-y-1">
@@ -163,96 +102,6 @@ export function InsightsBar({
             >
               Dismiss
             </button>
-          </div>
-        ) : null}
-
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((o) => !o)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white/90 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            aria-expanded={settingsOpen}
-          >
-            Alert thresholds
-            <Chevron open={settingsOpen} />
-          </button>
-        </div>
-
-        {settingsOpen ? (
-          <div className="grid gap-3 rounded-xl border border-slate-200/90 bg-white/95 p-3 text-xs dark:border-slate-600 dark:bg-slate-900/90 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">LM fraud ≥ (count)</span>
-              <input
-                type="number"
-                min={0}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-950"
-                value={thresholds.lmFraudMin}
-                onChange={(e) => updateThreshold({ lmFraudMin: Number(e.target.value) })}
-              />
-              <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={thresholds.enabled.lmFraud}
-                  onChange={(e) => updateThreshold({ enabled: { lmFraud: e.target.checked } })}
-                />
-                Enabled
-              </label>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">Partial bagging ≥ (count)</span>
-              <input
-                type="number"
-                min={0}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-950"
-                value={thresholds.partialBaggingMin}
-                onChange={(e) => updateThreshold({ partialBaggingMin: Number(e.target.value) })}
-              />
-              <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={thresholds.enabled.partialBagging}
-                  onChange={(e) => updateThreshold({ enabled: { partialBagging: e.target.checked } })}
-                />
-                Enabled
-              </label>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">Not centralized ≥ (count)</span>
-              <input
-                type="number"
-                min={0}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-950"
-                value={thresholds.notCentralizedMin}
-                onChange={(e) => updateThreshold({ notCentralizedMin: Number(e.target.value) })}
-              />
-              <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={thresholds.enabled.notCentralized}
-                  onChange={(e) => updateThreshold({ enabled: { notCentralized: e.target.checked } })}
-                />
-                Enabled
-              </label>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">Zone offline % ≥ (camera)</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-950"
-                value={thresholds.zoneOfflinePctMin}
-                onChange={(e) => updateThreshold({ zoneOfflinePctMin: Number(e.target.value) })}
-              />
-              <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={thresholds.enabled.zoneOffline}
-                  onChange={(e) => updateThreshold({ enabled: { zoneOffline: e.target.checked } })}
-                />
-                Enabled
-              </label>
-            </label>
           </div>
         ) : null}
       </div>

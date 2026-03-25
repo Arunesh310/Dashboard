@@ -44,19 +44,12 @@ import { loadSnapshot, saveCameraSnapshot, saveSnapshot } from "./lib/cloudSnaps
 import { DataTableTab } from "./DataTableTab.jsx";
 import { CameraStatusTab } from "./CameraStatusTab.jsx";
 import {
-  aggregateZone,
   buildCameraStatusRows,
   detectCameraStatusColumns,
   filterCameraStatusRows,
   rowsToDetailExport,
-  summarizeCameras,
   CAMERA_DETAIL_FIELDS,
 } from "./lib/cameraStatus.js";
-import {
-  evaluateCameraAlerts,
-  evaluateDashboardAlerts,
-  loadAlertThresholds,
-} from "./lib/alertThresholds.js";
 import {
   cameraConnectivityIndex,
   diffCameraConnectivityMaps,
@@ -653,7 +646,6 @@ export default function App() {
   const [uploadPipelineBusy, setUploadPipelineBusy] = useState(false);
   const [uploadPipelineTarget, setUploadPipelineTarget] = useState(null);
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState(null);
-  const [alertThresholds, setAlertThresholds] = useState(() => loadAlertThresholds());
   const [dashboardUploadDiff, setDashboardUploadDiff] = useState(null);
   const [cameraUploadDiff, setCameraUploadDiff] = useState(null);
   const exportRootRef = useRef(null);
@@ -768,22 +760,6 @@ export default function App() {
   );
 
   const counts = useMemo(() => countByKind(annotated), [annotated]);
-
-  const cameraZoneAggFull = useMemo(() => aggregateZone(cameraStatusRows), [cameraStatusRows]);
-  const cameraKpisFull = useMemo(() => summarizeCameras(cameraStatusRows), [cameraStatusRows]);
-
-  const dashboardAlertsList = useMemo(
-    () => (annotated.length ? evaluateDashboardAlerts(counts, alertThresholds) : []),
-    [annotated, counts, alertThresholds]
-  );
-
-  const cameraAlertsList = useMemo(
-    () =>
-      cameraStatusRows.length
-        ? evaluateCameraAlerts(cameraZoneAggFull, cameraKpisFull, alertThresholds)
-        : [],
-    [cameraStatusRows, cameraZoneAggFull, cameraKpisFull, alertThresholds]
-  );
 
   const uniqueManifestCount = useMemo(() => {
     const manifestCol = colMapSafe.manifest;
@@ -1860,10 +1836,6 @@ export default function App() {
           </div>
         ) : null}
         <InsightsBar
-          dashboardAlerts={dashboardAlertsList}
-          cameraAlerts={cameraAlertsList}
-          thresholds={alertThresholds}
-          onThresholdsChange={setAlertThresholds}
           dashboardDiff={dashboardUploadDiff}
           cameraDiff={cameraUploadDiff}
           onDismissDashboardDiff={() => setDashboardUploadDiff(null)}
