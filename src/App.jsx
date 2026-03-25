@@ -2189,58 +2189,60 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {FILTER_DEFS.map((p) => {
-                const active = filter === p.id;
-                const c = pillCount(p.id);
-                return (
-                  <div
-                    key={p.id}
-                    className={`flex min-w-0 w-full flex-col gap-2 rounded-xl border px-2 py-2 shadow-sm transition-all xs:flex-row xs:items-center xs:gap-1 xs:rounded-full xs:px-1 xs:py-1 xs:pl-3 sm:w-auto ${
-                      active
-                        ? "border-sfx/70 bg-sfx-soft ring-2 ring-sfx/25 dark:border-sfx/50 dark:bg-sfx-deep/30 dark:ring-sfx/35"
-                        : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-1 py-1 text-sm font-semibold text-slate-800 xs:justify-center dark:text-slate-100 sm:justify-center">
-                      <button
-                        type="button"
-                        onClick={() => setFilter(p.id)}
-                        className="min-w-0 text-left xs:text-center"
-                      >
-                        {p.label}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
+            <div className="surface-card filter-shell w-full min-w-0">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
+                {FILTER_DEFS.map((p) => {
+                  const active = filter === p.id;
+                  const c = pillCount(p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-xl border px-2 py-2.5 text-center shadow-sm transition-all sm:min-h-0 sm:py-3 ${
+                        active
+                          ? "border-sfx/70 bg-sfx-soft ring-2 ring-sfx/25 dark:border-sfx/50 dark:bg-sfx-deep/30 dark:ring-sfx/35"
+                          : "border-slate-200/90 bg-white/95 dark:border-slate-700/70 dark:bg-slate-900/70"
+                      }`}
+                    >
+                      <div className="flex min-w-0 flex-col items-center justify-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setFilter(p.id)}
+                          className="line-clamp-2 w-full min-w-0 px-0.5 text-center text-xs font-semibold leading-tight text-slate-800 sm:text-sm dark:text-slate-100"
+                        >
+                          {p.label}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadCsv(
+                              dashCsvName(`${p.id}-filter`),
+                              stripExportRows(applyFilter(scopeFilteredRows, p.id), exportFields),
+                              exportFields
+                            )
+                          }
+                          className="font-normal tabular-nums text-[11px] text-sfx underline decoration-sfx/35 decoration-dotted underline-offset-2 hover:text-sfx-deep sm:text-xs dark:text-sfx-cta dark:decoration-sfx-cta/50 dark:hover:text-sfx-cta"
+                          title={`Download ${p.label} rows only (${c.toLocaleString()})`}
+                        >
+                          ({shortCount(c)})
+                        </button>
+                      </div>
+                      <DownloadBtn
+                        hideCount
+                        count={c}
+                        variant="slate"
+                        label={`Download ${p.label} rows`}
+                        onClickSlice={() =>
                           downloadCsv(
                             dashCsvName(`${p.id}-filter`),
                             stripExportRows(applyFilter(scopeFilteredRows, p.id), exportFields),
                             exportFields
                           )
                         }
-                        className="font-normal tabular-nums text-sfx underline decoration-sfx/35 decoration-dotted underline-offset-2 hover:text-sfx-deep dark:text-sfx-cta dark:decoration-sfx-cta/50 dark:hover:text-sfx-cta"
-                        title={`Download ${p.label} rows only (${c.toLocaleString()})`}
-                      >
-                        ({shortCount(c)})
-                      </button>
+                      />
                     </div>
-                    <DownloadBtn
-                      hideCount
-                      count={c}
-                      variant="slate"
-                      label={`Download ${p.label} rows`}
-                      onClickSlice={() =>
-                        downloadCsv(
-                          dashCsvName(`${p.id}-filter`),
-                          stripExportRows(applyFilter(scopeFilteredRows, p.id), exportFields),
-                          exportFields
-                        )
-                      }
-                    />
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
