@@ -1,4 +1,4 @@
-import { getRcaValue } from "./columns.js";
+import { getRcaValue, getMovementNormalized, isRcaEmpty } from "./columns.js";
 
 /** @typedef {'all' | 'partial_bagging' | 'lm_fraud' | 'no_footage' | 'camera_issues'} DashboardFilter */
 
@@ -41,6 +41,7 @@ export function classifyIssue(text) {
 
 /** Human-readable labels for classified issue kind (Data Table category filter). */
 export const ISSUE_KIND_LABELS = {
+  pending: "Pendency (no RCA)",
   lm_fraud: "LM Fraud",
   partial_bagging: "Partial Bagging",
   proper_bagging: "Proper Bagging",
@@ -61,9 +62,41 @@ export const ISSUE_KIND_LABELS = {
 export function annotateRows(rows, colMap, fields) {
   return rows.map((r) => {
     const rcaText = getRcaValue(r, colMap, fields);
-    const kind = classifyIssue(rcaText);
-    return { ...r, __kind: kind, __rcaText: rcaText };
+    const pending = isRcaEmpty(rcaText);
+    const movement = getMovementNormalized(r, colMap);
+    const kind = pending ? "pending" : classifyIssue(rcaText);
+    return { ...r, __kind: kind, __rcaText: rcaText, __pending: pending, __movement: movement };
   });
+}
+
+/**
+ * Forward movement: RCA patterns that suggest hub has freight but scanning/short-count behaviour is off.
+ * (Theft-risk / process flags — tune strings to match your exports.)
+ */
+export function isFwdScanningTheftRca(text) {
+  const t = String(text ?? "").toLowerCase();
+  if (!t.trim()) return false;
+  if (t.includes("short found") || t.includes("short validated")) return true;
+  if (t.includes("no short")) return true;
+  return false;
+}
+
+/** @param {ReturnType<typeof annotateRows>[number]} r */
+export function isFwdHubRiskRow(r) {
+  if (r.__movement !== "fwd" || r.__pending) return false;
+  if (r.__kind === "camera_issues") return true;
+  return isFwdScanningTheftRca(r.__rcaText ?? "");
+}
+
+/**
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {'all' | 'fwd' | 'rev'} movementFilter
+ */
+export function applyMovementFilter(rows, movementFilter) {
+  if (movementFilter === "all") return rows;
+  if (movementFilter === "fwd") return rows.filter((r) => r.__movement === "fwd");
+  if (movementFilter === "rev") return rows.filter((r) => r.__movement === "rev");
+  return rows;
 }
 
 /**
@@ -77,6 +110,7 @@ export function applyFilter(rows, filter) {
 
 export function countByKind(rows) {
   const m = {
+    pending: 0,
     partial_bagging: 0,
     lm_fraud: 0,
     no_footage: 0,
@@ -395,6 +429,7 @@ export function sliceLastWeeks(series, maxWeeks) {
  * non-blank RCA, and RCA text does not contain not centralized/centralised or backup issue.
  */
 export function hasValidRcaForPocProductivity(row) {
+  if (row.__kind === "pending" || row.__pending) return false;
   if (row.__kind === "closed" || row.__kind === "offline") return false;
   const rca = String(row.__rcaText ?? "").trim();
   if (!rca) return false;

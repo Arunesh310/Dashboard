@@ -40,6 +40,8 @@ function zoneBadgeClass(zone) {
 }
 
 function rcaBadgeClass(kind) {
+  if (kind === "pending")
+    return "bg-slate-200 text-slate-900 ring-1 ring-slate-300/80 dark:bg-slate-600/40 dark:text-slate-100 dark:ring-slate-500/45";
   if (kind === "partial_bagging")
     return "bg-orange-100 text-orange-950 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-400/35";
   if (kind === "multiple_bagging")
@@ -80,6 +82,12 @@ function sameSelection(a, b) {
   const sa = [...a].map(String).sort();
   const sb = [...b].map(String).sort();
   return sa.every((v, i) => v === sb[i]);
+}
+
+function movementLabel(m) {
+  if (m === "fwd") return "FWD";
+  if (m === "rev") return "REV";
+  return "—";
 }
 
 function CameraIcon({ className = "h-5 w-5" }) {
@@ -188,7 +196,13 @@ export function DataTableTab({
             aria-label="Search manifests and hubs"
           />
         </div>
-        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end lg:max-w-4xl lg:shrink-0">
+        <div
+          className={`grid w-full gap-4 sm:items-end lg:shrink-0 ${
+            showMovementFilter
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:max-w-6xl"
+              : "grid-cols-1 sm:grid-cols-3 lg:max-w-4xl"
+          }`}
+        >
           <div className="flex min-w-0 flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Zone
@@ -211,8 +225,34 @@ export function DataTableTab({
               options={rcaOptions}
               selected={rcaDraft}
               setSelected={setRcaDraft}
+              applied={rcaFilter}
+              onApply={(next) => setRcaFilter(next)}
             />
           </div>
+          {showMovementFilter ? (
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Movement
+              </span>
+              <select
+                value={movementFilter}
+                onChange={(e) => setMovementFilter(e.target.value)}
+                className="min-h-[44px] w-full rounded-xl border border-slate-200/90 bg-white py-2.5 pl-3 pr-8 text-sm font-semibold text-slate-800 shadow-sm transition-[border-color,box-shadow] duration-300 ease-sfx-smooth dark:border-slate-600/80 dark:bg-slate-900/90 dark:text-slate-100"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "right 0.65rem center",
+                  backgroundSize: "1rem",
+                  appearance: "none",
+                }}
+                aria-label="Movement filter"
+              >
+                <option value="all">All movements</option>
+                <option value="rev">Reverse (REV)</option>
+                <option value="fwd">Forward (FWD)</option>
+              </select>
+            </div>
+          ) : null}
           <div className="flex min-w-0 flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Category
@@ -294,6 +334,11 @@ export function DataTableTab({
                     {colMapSafe.hub ? (
                       <td className="max-w-[14rem] truncate px-2 py-2 sm:px-4 sm:py-2.5 text-slate-700 dark:text-slate-300">
                         {r[colMapSafe.hub] ?? "—"}
+                      </td>
+                    ) : null}
+                    {colMapSafe.movement ? (
+                      <td className="whitespace-nowrap px-2 py-2 sm:px-4 sm:py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {movementLabel(r.__movement)}
                       </td>
                     ) : null}
                     <td className="px-2 py-2 sm:px-4 sm:py-2.5">

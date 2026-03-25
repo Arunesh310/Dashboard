@@ -19,6 +19,7 @@ import { Bar, Doughnut, Line } from "react-chartjs-2";
 import { detectColumns, getRcaValue } from "./lib/columns.js";
 import {
   annotateRows,
+  applyMovementFilter,
   countByKind,
   aggregateByField,
   canonicalizeZoneLabel,
@@ -35,6 +36,8 @@ import {
   filterRowsForHotspots,
   ISSUE_KIND_LABELS,
   rowsMatchingRcaAggregateKey,
+  isFwdHubRiskRow,
+  isFwdScanningTheftRca,
 } from "./lib/analytics.js";
 import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
 import {
@@ -274,6 +277,8 @@ function zoneBadgeClass(zone) {
 }
 
 function rcaBadgeClass(kind) {
+  if (kind === "pending")
+    return "bg-slate-200 text-slate-900 ring-1 ring-slate-300/80 dark:bg-slate-600/40 dark:text-slate-100 dark:ring-slate-500/45";
   if (kind === "partial_bagging")
     return "bg-orange-100 text-orange-950 ring-1 ring-orange-200/80 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-400/35";
   if (kind === "multiple_bagging")
@@ -689,6 +694,14 @@ export default function App() {
   const [dashRcaDraft, setDashRcaDraft] = useState(() =>
     normalizeStoredMulti(readStoredUi()?.dashRcaFilter)
   );
+  const [movementFilter, setMovementFilter] = useState(() => {
+    const v = readStoredUi()?.movementFilter;
+    return v === "fwd" || v === "rev" || v === "all" ? v : "all";
+  });
+  const [dataTableMovement, setDataTableMovement] = useState(() => {
+    const v = readStoredUi()?.dataTableMovement;
+    return v === "fwd" || v === "rev" || v === "all" ? v : "all";
+  });
   const [dataTablePage, setDataTablePage] = useState(0);
   const [pocProductivityExpanded, setPocProductivityExpanded] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -758,9 +771,11 @@ export default function App() {
           dashZoneFilter,
           dashPodFilter,
           dashRcaFilter,
+          movementFilter,
           dataTableZone,
           dataTableRca,
           dataTableCategory,
+          dataTableMovement,
         })
       );
     } catch {
@@ -774,9 +789,11 @@ export default function App() {
     dashZoneFilter,
     dashPodFilter,
     dashRcaFilter,
+    movementFilter,
     dataTableZone,
     dataTableRca,
     dataTableCategory,
+    dataTableMovement,
   ]);
 
   useEffect(() => {
@@ -792,7 +809,7 @@ export default function App() {
 
   useEffect(() => {
     setDataTablePage(0);
-  }, [dataTableSearch, dataTableZone, dataTableRca, dataTableCategory, fileName]);
+  }, [dataTableSearch, dataTableZone, dataTableRca, dataTableCategory, dataTableMovement, fileName]);
 
   useEffect(() => {
     setDashZoneDraft(dashZoneFilter);
@@ -868,15 +885,22 @@ export default function App() {
     [annotated, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter]
   );
 
+  const revScopedRows = useMemo(
+    () => applyMovementFilter(scopeFilteredRows, "rev"),
+    [scopeFilteredRows]
+  );
+
+  const fwdScopedRows = useMemo(
+    () => applyMovementFilter(scopeFilteredRows, "fwd"),
+    [scopeFilteredRows]
+  );
+
   const filtered = useMemo(
-    () =>
-      applyScopeFilters(annotated, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter),
-    [annotated, colMapSafe, fields, dashZoneFilter, dashPodFilter, dashRcaFilter]
+    () => applyMovementFilter(scopeFilteredRows, movementFilter),
+    [scopeFilteredRows, movementFilter]
   );
 
   const countsFiltered = useMemo(() => countByKind(filtered), [filtered]);
-
-  const countsScope = useMemo(() => countByKind(scopeFilteredRows), [scopeFilteredRows]);
 
   const uniqueManifestCountFiltered = useMemo(() => {
     const manifestCol = colMapSafe.manifest;
@@ -896,6 +920,7 @@ export default function App() {
     const fraud = countsFiltered.lm_fraud;
     const camera = countsFiltered.camera_issues;
     const noFootage = countsFiltered.no_footage;
+    const pending = countsFiltered.pending;
     const issueLike =
       partial +
       fraud +
@@ -912,6 +937,7 @@ export default function App() {
       fraud,
       camera,
       noFootage,
+      pending,
       issueLike,
       properRate: total ? ((proper / total) * 100).toFixed(1) : "0",
       issueRate: total ? ((issueLike / total) * 100).toFixed(1) : "0",
@@ -921,8 +947,8 @@ export default function App() {
   const weeklyWeekKeys = useMemo(() => {
     const dc = colMapSafe.date;
     if (!dc) return [];
-    return getFilledWeekKeysBetweenMinMax(annotated, dc);
-  }, [annotated, colMapSafe.date]);
+    return getFilledWeekKeysBetweenMinMax(filtered, dc);
+  }, [filtered, colMapSafe.date]);
 
   const weeklyByIssue = useMemo(() => {
     const dc = colMapSafe.date;
@@ -937,30 +963,30 @@ export default function App() {
     const wk = weeklyWeekKeys.length ? weeklyWeekKeys : null;
     return {
       dateCol: dc,
-      partial: buildWeeklySeriesForKind(annotated, dc, "partial_bagging", wk ?? undefined),
-      fraud: buildWeeklySeriesForKind(annotated, dc, "lm_fraud", wk ?? undefined),
-      camera: buildWeeklySeriesForKind(annotated, dc, "camera_issues", wk ?? undefined),
+      partial: buildWeeklySeriesForKind(filtered, dc, "partial_bagging", wk ?? undefined),
+      fraud: buildWeeklySeriesForKind(filtered, dc, "lm_fraud", wk ?? undefined),
+      camera: buildWeeklySeriesForKind(filtered, dc, "camera_issues", wk ?? undefined),
     };
-  }, [annotated, colMapSafe.date, weeklyWeekKeys]);
+  }, [filtered, colMapSafe.date, weeklyWeekKeys]);
 
   const weeklyParseableCount = useMemo(() => {
     const dc = colMapSafe.date;
     if (!dc) return 0;
     let n = 0;
-    for (const r of annotated) {
+    for (const r of filtered) {
       if (parseFlexibleDate(r[dc])) n += 1;
     }
     return n;
-  }, [annotated, colMapSafe.date]);
+  }, [filtered, colMapSafe.date]);
 
   const weeklyPivotRows = useMemo(
-    () => (colMapSafe.date ? buildWeeklyPivotRows(annotated, colMapSafe.date) : []),
-    [annotated, colMapSafe.date]
+    () => (colMapSafe.date ? buildWeeklyPivotRows(filtered, colMapSafe.date) : []),
+    [filtered, colMapSafe.date]
   );
 
   const pocProductivityList = useMemo(
-    () => aggregatePocProductivity(annotated, colMapSafe.poc),
-    [annotated, colMapSafe.poc]
+    () => aggregatePocProductivity(filtered, colMapSafe.poc),
+    [filtered, colMapSafe.poc]
   );
 
   const pocProductivityTop = useMemo(
@@ -995,7 +1021,31 @@ export default function App() {
     [filtered, colMapSafe.zone]
   );
 
-  const rcaPairs = useMemo(() => aggregateRca(filtered, 8), [filtered]);
+  const zonePairsRev = useMemo(
+    () =>
+      aggregateByField(revScopedRows, colMapSafe.zone, 8, {
+        skipEmpty: true,
+        keyNormalizer: canonicalizeZoneLabel,
+      }),
+    [revScopedRows, colMapSafe.zone]
+  );
+
+  const zonePairsFwd = useMemo(
+    () =>
+      aggregateByField(fwdScopedRows, colMapSafe.zone, 8, {
+        skipEmpty: true,
+        keyNormalizer: canonicalizeZoneLabel,
+      }),
+    [fwdScopedRows, colMapSafe.zone]
+  );
+
+  const rcaPairs = useMemo(
+    () => aggregateRca(
+      filtered.filter((r) => r.__kind !== "pending"),
+      8
+    ),
+    [filtered]
+  );
 
   const hotspotRows = useMemo(
     () => filterRowsForHotspots(filtered),
@@ -1049,6 +1099,7 @@ export default function App() {
 
   const recentIssuesSorted = useMemo(() => {
     const withRca = filtered.filter((r) => {
+      if (r.__kind === "pending") return false;
       if (r.__kind === "proper_bagging") return false;
       const text = getRcaValue(r, colMapSafe, fields);
       return text != null && String(text).trim() !== "";
@@ -1112,6 +1163,10 @@ export default function App() {
     const h = colMapSafe.hub;
     const z = colMapSafe.zone;
     return annotated.filter((r) => {
+      if (colMapSafe.movement) {
+        if (dataTableMovement === "fwd" && r.__movement !== "fwd") return false;
+        if (dataTableMovement === "rev" && r.__movement !== "rev") return false;
+      }
       if (dataTableZone.length > 0) {
         const zv = z ? String(r[z] ?? "").trim() : "";
         if (!dataTableZone.includes(canonicalizeZoneLabel(zv))) return false;
@@ -1136,6 +1191,7 @@ export default function App() {
     dataTableZone,
     dataTableRca,
     dataTableCategory,
+    dataTableMovement,
   ]);
 
   const donutData = useMemo(() => {
@@ -1210,6 +1266,141 @@ export default function App() {
     [isDark, zonePairs, filtered, colMapSafe.zone, exportFields, dashCsvName]
   );
 
+  const donutPalette = [
+    "#008A71",
+    "#D5D226",
+    "#ea580c",
+    "#7c3aed",
+    "#0d9488",
+    "#db2777",
+    "#ca8a04",
+    "#4f46e5",
+  ];
+
+  const donutDataRev = useMemo(() => {
+    const labels = zonePairsRev.map(([l]) => l);
+    const data = zonePairsRev.map(([, v]) => v);
+    return {
+      labels,
+      datasets: [
+        {
+          data,
+          backgroundColor: labels.map((_, i) => donutPalette[i % donutPalette.length]),
+          borderWidth: 2,
+          borderColor: isDark ? "#0f172a" : "#ffffff",
+          hoverOffset: 6,
+        },
+      ],
+    };
+  }, [zonePairsRev, isDark]);
+
+  const donutDataFwd = useMemo(() => {
+    const labels = zonePairsFwd.map(([l]) => l);
+    const data = zonePairsFwd.map(([, v]) => v);
+    return {
+      labels,
+      datasets: [
+        {
+          data,
+          backgroundColor: labels.map((_, i) => donutPalette[i % donutPalette.length]),
+          borderWidth: 2,
+          borderColor: isDark ? "#0f172a" : "#ffffff",
+          hoverOffset: 6,
+        },
+      ],
+    };
+  }, [zonePairsFwd, isDark]);
+
+  const donutOptionsRev = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "62%",
+      onClick: (_evt, elements) => {
+        if (!elements?.length) return;
+        const idx = elements[0].index;
+        const pair = zonePairsRev[idx];
+        if (!pair) return;
+        const z = pair[0];
+        downloadCsv(
+          dashCsvName("zone-rev", z),
+          stripExportRows(
+            revScopedRows.filter(
+              (r) =>
+                canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                canonicalizeZoneLabel(String(z))
+            ),
+            exportFields
+          ),
+          exportFields
+        );
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            boxWidth: 12,
+            padding: 16,
+            font: { size: 12 },
+            color: isDark ? "#cbd5e1" : "#475569",
+          },
+        },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.92)",
+          padding: 12,
+          cornerRadius: 8,
+        },
+      },
+    }),
+    [isDark, zonePairsRev, revScopedRows, colMapSafe.zone, exportFields, dashCsvName]
+  );
+
+  const donutOptionsFwd = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "62%",
+      onClick: (_evt, elements) => {
+        if (!elements?.length) return;
+        const idx = elements[0].index;
+        const pair = zonePairsFwd[idx];
+        if (!pair) return;
+        const z = pair[0];
+        downloadCsv(
+          dashCsvName("zone-fwd", z),
+          stripExportRows(
+            fwdScopedRows.filter(
+              (r) =>
+                canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                canonicalizeZoneLabel(String(z))
+            ),
+            exportFields
+          ),
+          exportFields
+        );
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            boxWidth: 12,
+            padding: 16,
+            font: { size: 12 },
+            color: isDark ? "#cbd5e1" : "#475569",
+          },
+        },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.92)",
+          padding: 12,
+          cornerRadius: 8,
+        },
+      },
+    }),
+    [isDark, zonePairsFwd, fwdScopedRows, colMapSafe.zone, exportFields, dashCsvName]
+  );
+
+  const hasMovementColumn = Boolean(colMapSafe.movement);
+
   const ingestParsed = useCallback((res, name) => {
     setError("");
     const f = res.meta.fields?.filter(Boolean) ?? [];
@@ -1237,6 +1428,8 @@ export default function App() {
     setDataTableZone([]);
     setDataTableRca([]);
     setDataTableCategory([]);
+    setDataTableMovement("all");
+    setMovementFilter("all");
     setDashZoneFilter([]);
     setDashPodFilter([]);
     setDashRcaFilter([]);
@@ -1396,6 +1589,8 @@ export default function App() {
     setDataTableZone([]);
     setDataTableRca([]);
     setDataTableCategory([]);
+    setDataTableMovement("all");
+    setMovementFilter("all");
     setDashZoneFilter([]);
     setDashPodFilter([]);
     setDashRcaFilter([]);
@@ -2027,95 +2222,411 @@ export default function App() {
 
         {annotated.length ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-3 rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50 to-white p-4 shadow-card dark:border-red-500/20 dark:from-red-950/50 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-lg text-red-700 shadow-inner dark:bg-red-500/20 dark:text-red-300">
-                    ⚠
-                  </span>
-                  <div>
-                    <p className="font-semibold text-red-900 dark:text-red-100">LM Fraud detected</p>
-                    <p className="text-sm text-red-800 dark:text-red-200/90">
-                      <button
-                        type="button"
-                        onClick={() =>
+            {hasMovementColumn && movementFilter === "all" ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
+                  <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    Reverse (REV)
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Pendency and reverse RCA focus (scope below applies).
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      {
+                        label: "Pendency",
+                        n: revScopedRows.filter((r) => r.__kind === "pending").length,
+                        dl: () =>
                           downloadCsv(
-                            dashCsvName("lm-fraud-rows"),
-                            stripExportRows(issueSlice(scopeFilteredRows, "all", "lm_fraud"), exportFields),
-                            exportFields
-                          )
-                        }
-                        className="font-semibold tabular-nums text-red-900 underline decoration-red-800/40 decoration-dotted underline-offset-2 hover:text-red-950 dark:text-red-100 dark:decoration-red-300/50 dark:hover:text-red-50"
-                        title="Download LM fraud rows only"
-                      >
-                        {countsScope.lm_fraud}
-                      </button>{" "}
-                      in current scope
-                    </p>
-                  </div>
-                </div>
-                <DownloadBtn
-                  count={issueSlice(scopeFilteredRows, "all", "lm_fraud").length}
-                  label="Download LM fraud rows"
-                  variant="red"
-                  onClickSlice={() =>
-                    downloadCsv(
-                      dashCsvName("lm-fraud-rows"),
-                      stripExportRows(issueSlice(scopeFilteredRows, "all", "lm_fraud"), exportFields),
-                      exportFields
-                    )
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-card dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-lg font-bold text-amber-800 shadow-inner dark:bg-amber-500/20 dark:text-amber-200">
-                    !
-                  </span>
-                  <div>
-                    <p className="font-semibold text-amber-950 dark:text-amber-100">High Partial Bagging</p>
-                    <p className="text-sm text-amber-900 dark:text-amber-200/90">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          downloadCsv(
-                            dashCsvName("partial-bagging-rows"),
+                            dashCsvName("rev-pendency"),
                             stripExportRows(
-                              issueSlice(scopeFilteredRows, "all", "partial_bagging"),
+                              revScopedRows.filter((r) => r.__kind === "pending"),
                               exportFields
                             ),
                             exportFields
-                          )
-                        }
-                        className="font-semibold tabular-nums text-amber-950 underline decoration-amber-800/40 decoration-dotted underline-offset-2 hover:text-amber-900 dark:text-amber-100 dark:decoration-amber-300/50 dark:hover:text-amber-50"
-                        title="Download partial bagging rows only"
+                          ),
+                        tone: "text-slate-800 dark:text-slate-100",
+                      },
+                      {
+                        label: "LM Fraud",
+                        n: issueSlice(revScopedRows, "all", "lm_fraud").length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("rev-lm-fraud"),
+                            stripExportRows(issueSlice(revScopedRows, "all", "lm_fraud"), exportFields),
+                            exportFields
+                          ),
+                        tone: "text-red-700 dark:text-red-300",
+                      },
+                      {
+                        label: "Partial bagging",
+                        n: issueSlice(revScopedRows, "all", "partial_bagging").length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("rev-partial-bagging"),
+                            stripExportRows(
+                              issueSlice(revScopedRows, "all", "partial_bagging"),
+                              exportFields
+                            ),
+                            exportFields
+                          ),
+                        tone: "text-amber-800 dark:text-amber-200",
+                      },
+                      {
+                        label: "Camera",
+                        n: issueSlice(revScopedRows, "all", "camera_issues").length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("rev-camera"),
+                            stripExportRows(
+                              issueSlice(revScopedRows, "all", "camera_issues"),
+                              exportFields
+                            ),
+                            exportFields
+                          ),
+                        tone: "text-violet-700 dark:text-violet-300",
+                      },
+                    ].map((x) => (
+                      <button
+                        key={x.label}
+                        type="button"
+                        onClick={x.dl}
+                        className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left transition hover:border-sfx/40 hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/50 dark:hover:border-sfx/35"
                       >
-                        {countsScope.partial_bagging}
-                      </button>{" "}
-                      in current scope
-                    </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {x.label}
+                        </p>
+                        <p className={`mt-0.5 text-lg font-bold tabular-nums ${x.tone}`}>
+                          {x.n.toLocaleString()}
+                        </p>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <DownloadBtn
-                  count={issueSlice(scopeFilteredRows, "all", "partial_bagging").length}
-                  label="Download partial bagging rows"
-                  variant="amber"
-                  onClickSlice={() =>
-                    downloadCsv(
-                      dashCsvName("partial-bagging-rows"),
-                      stripExportRows(issueSlice(scopeFilteredRows, "all", "partial_bagging"), exportFields),
-                      exportFields
-                    )
-                  }
-                />
+                <div className="surface-card border-l-4 border-l-amber-500 dark:border-l-amber-400">
+                  <h3 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    Forward (FWD)
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Pendency, short-count flags, and camera issues from DC hubs.
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      {
+                        label: "Pendency",
+                        n: fwdScopedRows.filter((r) => r.__kind === "pending").length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("fwd-pendency"),
+                            stripExportRows(
+                              fwdScopedRows.filter((r) => r.__kind === "pending"),
+                              exportFields
+                            ),
+                            exportFields
+                          ),
+                        tone: "text-slate-800 dark:text-slate-100",
+                      },
+                      {
+                        label: "Short / scan flags",
+                        n: fwdScopedRows.filter(
+                          (r) =>
+                            !r.__pending &&
+                            r.__kind !== "camera_issues" &&
+                            isFwdScanningTheftRca(r.__rcaText)
+                        ).length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("fwd-short-scan"),
+                            stripExportRows(
+                              fwdScopedRows.filter(
+                                (r) =>
+                                  !r.__pending &&
+                                  r.__kind !== "camera_issues" &&
+                                  isFwdScanningTheftRca(r.__rcaText)
+                              ),
+                              exportFields
+                            ),
+                            exportFields
+                          ),
+                        tone: "text-amber-800 dark:text-amber-200",
+                      },
+                      {
+                        label: "Camera issues",
+                        n: issueSlice(fwdScopedRows, "all", "camera_issues").length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("fwd-camera"),
+                            stripExportRows(
+                              issueSlice(fwdScopedRows, "all", "camera_issues"),
+                              exportFields
+                            ),
+                            exportFields
+                          ),
+                        tone: "text-violet-700 dark:text-violet-300",
+                      },
+                      {
+                        label: "Hub risk (all)",
+                        n: fwdScopedRows.filter((r) => isFwdHubRiskRow(r)).length,
+                        dl: () =>
+                          downloadCsv(
+                            dashCsvName("fwd-hub-risk"),
+                            stripExportRows(fwdScopedRows.filter((r) => isFwdHubRiskRow(r)), exportFields),
+                            exportFields
+                          ),
+                        tone: "text-orange-800 dark:text-orange-200",
+                      },
+                    ].map((x) => (
+                      <button
+                        key={x.label}
+                        type="button"
+                        onClick={x.dl}
+                        className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left transition hover:border-amber-400/50 hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/50 dark:hover:border-amber-500/40"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {x.label}
+                        </p>
+                        <p className={`mt-0.5 text-lg font-bold tabular-nums ${x.tone}`}>
+                          {x.n.toLocaleString()}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : hasMovementColumn && movementFilter === "rev" ? (
+              <div className="surface-card border-l-4 border-l-sfx dark:border-l-sfx-cta">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Showing: Reverse (REV)
+                </h3>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    {
+                      label: "Pendency",
+                      n: filtered.filter((r) => r.__kind === "pending").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("pendency-rev"),
+                          stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "LM Fraud",
+                      n: issueSlice(filtered, "all", "lm_fraud").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("lm-fraud-rev"),
+                          stripExportRows(issueSlice(filtered, "all", "lm_fraud"), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "Partial bagging",
+                      n: issueSlice(filtered, "all", "partial_bagging").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("partial-rev"),
+                          stripExportRows(issueSlice(filtered, "all", "partial_bagging"), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "Camera",
+                      n: issueSlice(filtered, "all", "camera_issues").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("camera-rev"),
+                          stripExportRows(issueSlice(filtered, "all", "camera_issues"), exportFields),
+                          exportFields
+                        ),
+                    },
+                  ].map((x) => (
+                    <button
+                      key={x.label}
+                      type="button"
+                      onClick={x.dl}
+                      className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left text-sm font-semibold text-slate-800 transition hover:border-sfx/40 dark:border-slate-700/60 dark:bg-slate-800/50 dark:text-slate-100"
+                    >
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {x.label}
+                      </span>
+                      <span className="mt-0.5 block text-xl tabular-nums">{x.n.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : hasMovementColumn && movementFilter === "fwd" ? (
+              <div className="surface-card border-l-4 border-l-amber-500 dark:border-l-amber-400">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Showing: Forward (FWD)
+                </h3>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    {
+                      label: "Pendency",
+                      n: filtered.filter((r) => r.__kind === "pending").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("pendency-fwd"),
+                          stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "Short / scan flags",
+                      n: filtered.filter(
+                        (r) =>
+                          !r.__pending &&
+                          r.__kind !== "camera_issues" &&
+                          isFwdScanningTheftRca(r.__rcaText)
+                      ).length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("short-scan-fwd"),
+                          stripExportRows(
+                            filtered.filter(
+                              (r) =>
+                                !r.__pending &&
+                                r.__kind !== "camera_issues" &&
+                                isFwdScanningTheftRca(r.__rcaText)
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "Camera issues",
+                      n: issueSlice(filtered, "all", "camera_issues").length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("camera-fwd"),
+                          stripExportRows(issueSlice(filtered, "all", "camera_issues"), exportFields),
+                          exportFields
+                        ),
+                    },
+                    {
+                      label: "Hub risk (all)",
+                      n: filtered.filter((r) => isFwdHubRiskRow(r)).length,
+                      dl: () =>
+                        downloadCsv(
+                          dashCsvName("hub-risk-fwd"),
+                          stripExportRows(filtered.filter((r) => isFwdHubRiskRow(r)), exportFields),
+                          exportFields
+                        ),
+                    },
+                  ].map((x) => (
+                    <button
+                      key={x.label}
+                      type="button"
+                      onClick={x.dl}
+                      className="rounded-xl border border-slate-200/90 bg-slate-50/90 px-2 py-2 text-left text-sm font-semibold text-slate-800 transition hover:border-amber-400/50 dark:border-slate-700/60 dark:bg-slate-800/50 dark:text-slate-100"
+                    >
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {x.label}
+                      </span>
+                      <span className="mt-0.5 block text-xl tabular-nums">{x.n.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-3 rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50 to-white p-4 shadow-card dark:border-red-500/20 dark:from-red-950/50 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-lg text-red-700 shadow-inner dark:bg-red-500/20 dark:text-red-300">
+                      ⚠
+                    </span>
+                    <div>
+                      <p className="font-semibold text-red-900 dark:text-red-100">LM Fraud detected</p>
+                      <p className="text-sm text-red-800 dark:text-red-200/90">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadCsv(
+                              dashCsvName("lm-fraud-rows"),
+                              stripExportRows(issueSlice(filtered, "all", "lm_fraud"), exportFields),
+                              exportFields
+                            )
+                          }
+                          className="font-semibold tabular-nums text-red-900 underline decoration-red-800/40 decoration-dotted underline-offset-2 hover:text-red-950 dark:text-red-100 dark:decoration-red-300/50 dark:hover:text-red-50"
+                          title="Download LM fraud rows only"
+                        >
+                          {countsFiltered.lm_fraud}
+                        </button>{" "}
+                        in current view
+                      </p>
+                    </div>
+                  </div>
+                  <DownloadBtn
+                    count={issueSlice(filtered, "all", "lm_fraud").length}
+                    label="Download LM fraud rows"
+                    variant="red"
+                    onClickSlice={() =>
+                      downloadCsv(
+                        dashCsvName("lm-fraud-rows"),
+                        stripExportRows(issueSlice(filtered, "all", "lm_fraud"), exportFields),
+                        exportFields
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-card dark:border-amber-500/20 dark:from-amber-950/40 dark:to-slate-900/40 dark:shadow-card-dark sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-lg font-bold text-amber-800 shadow-inner dark:bg-amber-500/20 dark:text-amber-200">
+                      !
+                    </span>
+                    <div>
+                      <p className="font-semibold text-amber-950 dark:text-amber-100">High Partial Bagging</p>
+                      <p className="text-sm text-amber-900 dark:text-amber-200/90">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadCsv(
+                              dashCsvName("partial-bagging-rows"),
+                              stripExportRows(
+                                issueSlice(filtered, "all", "partial_bagging"),
+                                exportFields
+                              ),
+                              exportFields
+                            )
+                          }
+                          className="font-semibold tabular-nums text-amber-950 underline decoration-amber-800/40 decoration-dotted underline-offset-2 hover:text-amber-900 dark:text-amber-100 dark:decoration-amber-300/50 dark:hover:text-amber-50"
+                          title="Download partial bagging rows only"
+                        >
+                          {countsFiltered.partial_bagging}
+                        </button>{" "}
+                        in current view
+                      </p>
+                    </div>
+                  </div>
+                  <DownloadBtn
+                    count={issueSlice(filtered, "all", "partial_bagging").length}
+                    label="Download partial bagging rows"
+                    variant="amber"
+                    onClickSlice={() =>
+                      downloadCsv(
+                        dashCsvName("partial-bagging-rows"),
+                        stripExportRows(issueSlice(filtered, "all", "partial_bagging"), exportFields),
+                        exportFields
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="surface-card filter-shell">
               <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
                 Scope filters
               </h3>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+              <div
+                className={`mt-4 grid grid-cols-1 gap-4 sm:items-end ${
+                  hasMovementColumn
+                    ? "sm:grid-cols-2 xl:grid-cols-4"
+                    : "sm:grid-cols-3"
+                }`}
+              >
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Zone
@@ -2155,10 +2666,30 @@ export default function App() {
                     onApply={(next) => setDashRcaFilter(next)}
                   />
                 </div>
+                {hasMovementColumn ? (
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Movement
+                    </span>
+                    <select
+                      value={movementFilter}
+                      onChange={(e) => setMovementFilter(e.target.value)}
+                      className="filter-dropdown-summary w-full cursor-pointer appearance-none bg-[length:1rem] bg-[right_0.65rem_center] bg-no-repeat pr-9 text-sm dark:bg-[right_0.65rem_center]"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
+                      }}
+                      aria-label="Movement type"
+                    >
+                      <option value="all">All movements</option>
+                      <option value="rev">Reverse (REV)</option>
+                      <option value="fwd">Forward (FWD)</option>
+                    </select>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[
                 {
                   title: "Total Records",
@@ -2170,6 +2701,19 @@ export default function App() {
                   tone: "text-sfx dark:text-sfx-cta",
                   dl: () =>
                     downloadCsv(dashCsvName("all-records"), stripExportRows(filtered, exportFields), exportFields),
+                },
+                {
+                  title: "Pendency (no RCA)",
+                  value: kpis.pending,
+                  sub: "Awaiting root cause",
+                  icon: "⏳",
+                  tone: "text-slate-700 dark:text-slate-200",
+                  dl: () =>
+                    downloadCsv(
+                      dashCsvName("pendency-no-rca"),
+                      stripExportRows(filtered.filter((r) => r.__kind === "pending"), exportFields),
+                      exportFields
+                    ),
                 },
                 {
                   title: "Proper Bagging",
@@ -2411,7 +2955,7 @@ export default function App() {
                                   onClick={() => {
                                     const col = colMapSafe.poc;
                                     if (!col) return;
-                                    const subset = annotated.filter(
+                                    const subset = filtered.filter(
                                       (r) =>
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
@@ -2434,7 +2978,7 @@ export default function App() {
                                   onClick={() => {
                                     const col = colMapSafe.poc;
                                     if (!col) return;
-                                    const subset = annotated.filter(
+                                    const subset = filtered.filter(
                                       (r) =>
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
@@ -2457,7 +3001,7 @@ export default function App() {
                                   onClick={() => {
                                     const col = colMapSafe.poc;
                                     if (!col) return;
-                                    const subset = annotated.filter(
+                                    const subset = filtered.filter(
                                       (r) =>
                                         String(r[col] ?? "").trim() === String(row.poc).trim()
                                     );
@@ -2491,8 +3035,8 @@ export default function App() {
                       {pocProductivityTop.map((row, idx) => {
                         const series =
                           colMapSafe.date &&
-                          buildWeeklyProductivitySeriesForPoc(
-                            annotated,
+                            buildWeeklyProductivitySeriesForPoc(
+                            filtered,
                             colMapSafe.date,
                             colMapSafe.poc,
                             row.poc
@@ -2677,7 +3221,7 @@ export default function App() {
                                       ? "lm_fraud"
                                       : "camera_issues";
                                 const dc = colMapSafe.date;
-                                const subset = annotated.filter((r) => {
+                                const subset = filtered.filter((r) => {
                                   if (r.__kind !== kind) return false;
                                   const d = parseFlexibleDate(r[dc]);
                                   return d && weekKeyFromDate(d) === wk;
@@ -2721,7 +3265,9 @@ export default function App() {
             <div className="surface-card">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-                  Zone Distribution
+                  {hasMovementColumn && movementFilter === "all"
+                    ? "Zone distribution by movement"
+                    : "Zone Distribution"}
                 </h2>
                 <DownloadBtn
                   count={filtered.length}
@@ -2730,76 +3276,148 @@ export default function App() {
                   onClickSlice={() => downloadAggregateCsv("zone-summary.csv", zonePairs)}
                 />
               </div>
-              <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
-                <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
-                  {zonePairs.length ? (
-                    <Doughnut
-                      data={donutData}
-                      options={donutOptions}
-                      style={{ cursor: "pointer" }}
-                    />
-                  ) : (
-                    <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-                      No data
-                    </p>
-                  )}
-                </div>
-                <ul className="space-y-2">
-                  {zonePairs.map(([z, n]) => (
-                    <li
-                      key={z}
-                      className="surface-muted flex items-center justify-between px-3 py-2"
-                    >
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{z}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400 dark:decoration-slate-500 dark:hover:text-sfx-cta"
-                          title={`Download rows for ${z} only`}
-                          onClick={() =>
-                            downloadCsv(
-                              dashCsvName("zone", z),
-                              stripExportRows(
-                                filtered.filter(
-                                  (r) =>
-                                    canonicalizeZoneLabel(
-                                      String(r[colMapSafe.zone] ?? "")
-                                    ) === canonicalizeZoneLabel(String(z))
-                                ),
-                                exportFields
-                              ),
-                              exportFields
-                            )
-                          }
-                        >
-                          {shortCount(n)}
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
-                          title={`Download rows for ${z}`}
-                          onClick={() =>
-                            downloadCsv(
-                              dashCsvName("zone", z),
-                              stripExportRows(
-                                filtered.filter(
-                                  (r) =>
-                                    canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
-                                    canonicalizeZoneLabel(String(z))
-                                ),
-                                exportFields
-                              ),
-                              exportFields
-                            )
-                          }
-                        >
-                          <DownloadIcon className="h-4 w-4" />
-                        </button>
+              {hasMovementColumn && movementFilter === "all" ? (
+                <div className="grid gap-8 lg:grid-cols-2">
+                  {[
+                    {
+                      label: "Reverse (REV)",
+                      pairs: zonePairsRev,
+                      donut: donutDataRev,
+                      opts: donutOptionsRev,
+                      rows: revScopedRows,
+                      slug: "rev",
+                    },
+                    {
+                      label: "Forward (FWD)",
+                      pairs: zonePairsFwd,
+                      donut: donutDataFwd,
+                      opts: donutOptionsFwd,
+                      rows: fwdScopedRows,
+                      slug: "fwd",
+                    },
+                  ].map((blk) => (
+                    <div key={blk.slug} className="min-w-0 space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {blk.label}
+                      </h3>
+                      <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
+                        <div className="mx-auto h-44 w-full max-w-xs sm:h-52">
+                          {blk.pairs.length ? (
+                            <Doughnut data={blk.donut} options={blk.opts} style={{ cursor: "pointer" }} />
+                          ) : (
+                            <p className="flex h-full items-center justify-center text-xs text-slate-500">
+                              No data
+                            </p>
+                          )}
+                        </div>
+                        <ul className="max-h-48 space-y-1.5 overflow-auto text-sm">
+                          {blk.pairs.map(([z, n]) => (
+                            <li
+                              key={`${blk.slug}-${z}`}
+                              className="surface-muted flex items-center justify-between px-2 py-1.5"
+                            >
+                              <span className="truncate font-medium text-slate-800 dark:text-slate-200">
+                                {z}
+                              </span>
+                              <button
+                                type="button"
+                                className="shrink-0 tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400"
+                                onClick={() =>
+                                  downloadCsv(
+                                    dashCsvName("zone", blk.slug, z),
+                                    stripExportRows(
+                                      blk.rows.filter(
+                                        (r) =>
+                                          canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                                          canonicalizeZoneLabel(String(z))
+                                      ),
+                                      exportFields
+                                    ),
+                                    exportFields
+                                  )
+                                }
+                              >
+                                {shortCount(n)}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </li>
+                    </div>
                   ))}
-                </ul>
-              </div>
+                </div>
+              ) : (
+                <div className="grid gap-6 lg:grid-cols-2 lg:items-center">
+                  <div className="mx-auto h-52 w-full max-w-md xs:h-56 sm:h-64">
+                    {zonePairs.length ? (
+                      <Doughnut
+                        data={donutData}
+                        options={donutOptions}
+                        style={{ cursor: "pointer" }}
+                      />
+                    ) : (
+                      <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
+                        No data
+                      </p>
+                    )}
+                  </div>
+                  <ul className="space-y-2">
+                    {zonePairs.map(([z, n]) => (
+                      <li
+                        key={z}
+                        className="surface-muted flex items-center justify-between px-3 py-2"
+                      >
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{z}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                            title={`Download rows for ${z} only`}
+                            onClick={() =>
+                              downloadCsv(
+                                dashCsvName("zone", z),
+                                stripExportRows(
+                                  filtered.filter(
+                                    (r) =>
+                                      canonicalizeZoneLabel(
+                                        String(r[colMapSafe.zone] ?? "")
+                                      ) === canonicalizeZoneLabel(String(z))
+                                  ),
+                                  exportFields
+                                ),
+                                exportFields
+                              )
+                            }
+                          >
+                            {shortCount(n)}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                            title={`Download rows for ${z}`}
+                            onClick={() =>
+                              downloadCsv(
+                                dashCsvName("zone", z),
+                                stripExportRows(
+                                  filtered.filter(
+                                    (r) =>
+                                      canonicalizeZoneLabel(String(r[colMapSafe.zone] ?? "")) ===
+                                      canonicalizeZoneLabel(String(z))
+                                  ),
+                                  exportFields
+                                ),
+                                exportFields
+                              )
+                            }
+                          >
+                            <DownloadIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="surface-card">
@@ -3198,6 +3816,9 @@ export default function App() {
             categoryKinds={dataTableCategoryKinds}
             filteredRows={dataTableFiltered}
             onExportFullDataset={exportFullDashboardRows}
+            movementFilter={dataTableMovement}
+            setMovementFilter={setDataTableMovement}
+            showMovementFilter={Boolean(colMapSafe.movement)}
           />
         ) : null}
       </main>

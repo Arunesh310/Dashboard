@@ -14,9 +14,32 @@ function matches(fieldName, aliases) {
   });
 }
 
+/** True if RCA cell is empty or a placeholder (no root cause captured yet). */
+export function isRcaEmpty(raw) {
+  const t = String(raw ?? "").trim();
+  if (!t) return true;
+  const lower = t.toLowerCase();
+  if (["-", "—", "n/a", "na", "nil", "null", "none", "--"].includes(lower)) return true;
+  return false;
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {{ movement?: string | null }} colMap
+ * @returns {'fwd' | 'rev' | 'unknown'}
+ */
+export function getMovementNormalized(row, colMap) {
+  const k = colMap.movement;
+  if (!k) return "unknown";
+  const v = String(row[k] ?? "").trim().toUpperCase();
+  if (v === "FWD" || v === "FORWARD") return "fwd";
+  if (v === "REV" || v === "REVERSE") return "rev";
+  return "unknown";
+}
+
 /**
  * @param {string[]} fields
- * @returns {{ rca: string | null; hub: string | null; zone: string | null; manifest: string | null; open: string | null; date: string | null; cctv: string | null; pod: string | null; poc: string | null }}
+ * @returns {{ rca: string | null; hub: string | null; zone: string | null; manifest: string | null; open: string | null; date: string | null; cctv: string | null; pod: string | null; poc: string | null; movement: string | null }}
  */
 export function detectColumns(fields) {
   if (!fields?.length) {
@@ -30,6 +53,7 @@ export function detectColumns(fields) {
       cctv: null,
       pod: null,
       poc: null,
+      movement: null,
     };
   }
 
@@ -109,6 +133,14 @@ export function detectColumns(fields) {
       "analyst",
       "assigned to",
       "assignee",
+    ]),
+    movement: pick([
+      "movement type",
+      "movement",
+      "movement_type",
+      "direction",
+      "flow",
+      "leg",
     ]),
   };
 }
