@@ -12,6 +12,7 @@ export function classifyIssue(text) {
   if (t.includes("lm fraud") || t.includes("last mile fraud")) return "lm_fraud";
   if (t.includes("fraud") && (t.includes("lm") || t.includes("last mile")))
     return "lm_fraud";
+  if (t.includes("debag")) return "multiple_bagging";
   if (
     t.includes("multiple bagg") ||
     (t.includes("multiple") && t.includes("bagg") && !t.includes("partial bagg"))
@@ -110,11 +111,17 @@ export function isFwdCameraRow(r) {
   return r.__movement === "fwd" && !r.__pending && r.__kind === "camera_issues";
 }
 
-/** @param {ReturnType<typeof annotateRows>[number]} r */
+/**
+ * Forward: hub fraud / risk — camera issues, multiple bagging (debagging), or "no short found".
+ * Excludes {@link isFwdShortFoundRow} (visibility that the hub has not received the shipment; not this bucket).
+ * @param {ReturnType<typeof annotateRows>[number]} r
+ */
 export function isFwdHubRiskRow(r) {
   if (r.__movement !== "fwd" || r.__pending) return false;
+  if (isFwdShortFoundRow(r)) return false;
   if (r.__kind === "camera_issues") return true;
-  return isFwdScanningTheftRca(r.__rcaText ?? "");
+  if (r.__kind === "multiple_bagging") return true;
+  return isFwdNoShortRow(r);
 }
 
 /**
@@ -187,6 +194,117 @@ export const HOTSPOT_ISSUE_KINDS = [
  */
 export function filterRowsForHotspots(rows) {
   return rows.filter((r) => HOTSPOT_ISSUE_KINDS.includes(r.__kind));
+}
+
+export function isFwdBaggingGapRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  return t.includes("bagging gap") || t.includes("bagg gap") || t.includes("bagging-gap");
+}
+
+export function isFwdNotCentralizedRcaRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  return t.includes("not centralized") || t.includes("not centralised");
+}
+
+/**
+ * FWD issue hotspots: problematic hub behaviour — excludes {@link isFwdShortFoundRow} (visibility only).
+ * @param {ReturnType<typeof annotateRows>[number]} r
+ */
+export function isFwdProblemHotspotRow(r) {
+  if (r.__movement !== "fwd" || r.__pending) return false;
+  if (isFwdShortFoundRow(r)) return false;
+  if (r.__kind === "proper_bagging") return false;
+  if (isFwdHubRiskRow(r)) return true;
+  if (HOTSPOT_ISSUE_KINDS.includes(r.__kind)) return true;
+  const t = String(r.__rcaText ?? "");
+  if (isFwdBaggingGapRemark(t)) return true;
+  if (isFwdNotCentralizedRcaRemark(t)) return true;
+  return false;
+}
+
+/**
+ * Mutually exclusive bucket for stacked “FWD problem by hub” chart.
+ * @param {ReturnType<typeof annotateRows>[number]} r
+ */
+export function fwdProblemCategoryForRow(r) {
+  if (!isFwdProblemHotspotRow(r)) return null;
+  if (isFwdNoShortRow(r)) return "no_short";
+  if (r.__kind === "camera_issues") return "camera";
+  if (r.__kind === "multiple_bagging") return "debagging";
+  const t = String(r.__rcaText ?? "");
+  if (isFwdBaggingGapRemark(t)) return "bagging_gap";
+  if (isFwdNotCentralizedRcaRemark(t)) return "not_centralized";
+  if (r.__kind === "partial_bagging") return "partial";
+  if (r.__kind === "lm_fraud") return "fraud";
+  return "other";
+}
+
+const FWD_STACK_ORDER = [
+  "no_short",
+  "camera",
+  "debagging",
+  "bagging_gap",
+  "not_centralized",
+  "partial",
+  "fraud",
+  "other",
+];
+
+const FWD_STACK_LABELS = {
+  no_short: "No short found",
+  camera: "Camera",
+  debagging: "Multiple debagging",
+  bagging_gap: "Bagging gap",
+  not_centralized: "Not centralized",
+  partial: "Partial bagging",
+  fraud: "LM fraud",
+  other: "Other",
+};
+
+const FWD_STACK_COLORS = {
+  no_short: "rgba(220, 38, 38, 0.92)",
+  camera: "rgba(124, 58, 237, 0.92)",
+  debagging: "rgba(234, 88, 12, 0.92)",
+  bagging_gap: "rgba(251, 146, 60, 0.92)",
+  not_centralized: "rgba(59, 130, 246, 0.92)",
+  partial: "rgba(250, 204, 21, 0.92)",
+  fraud: "rgba(185, 28, 28, 0.92)",
+  other: "rgba(100, 116, 139, 0.92)",
+};
+
+/**
+ * Stacked horizontal bar data: top hubs by total FWD problem rows (excluding short found).
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {string | null} hubField
+ */
+export function buildFwdProblemHubStack(rows, hubField, hubLimit = 12) {
+  if (!hubField) return { labels: [], datasets: [] };
+  const rowsP = rows.filter(isFwdProblemHotspotRow);
+  const byHub = new Map();
+  for (const r of rowsP) {
+    const hub = String(r[hubField] ?? "").trim() || "Unknown";
+    const cat = fwdProblemCategoryForRow(r);
+    if (!cat) continue;
+    if (!byHub.has(hub)) byHub.set(hub, { total: 0, cats: {} });
+    const o = byHub.get(hub);
+    o.total += 1;
+    o.cats[cat] = (o.cats[cat] ?? 0) + 1;
+  }
+  const hubsSorted = [...byHub.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, hubLimit)
+    .map(([h]) => h);
+  if (hubsSorted.length === 0) return { labels: [], datasets: [] };
+  const datasets = FWD_STACK_ORDER.map((key) => ({
+    label: FWD_STACK_LABELS[key],
+    data: hubsSorted.map((hub) => byHub.get(hub)?.cats[key] ?? 0),
+    backgroundColor: FWD_STACK_COLORS[key],
+    stack: "fwdProblem",
+  })).filter((ds) => ds.data.some((v) => v > 0));
+  return {
+    labels: hubsSorted,
+    datasets: datasets.length ? datasets : [],
+  };
 }
 
 /**
