@@ -37,16 +37,15 @@ import {
   getFilledWeekKeysBetweenMinMax,
   parseFlexibleDate,
   weekKeyFromDate,
+  filterRowsForHotspots,
   ISSUE_KIND_LABELS,
   rowsMatchingRcaAggregateKey,
   isFwdHubRiskRow,
   isFwdShortFoundRow,
   isFwdNoShortRow,
   isFwdCameraRow,
-  isRevProblemHubRow,
-  isFwdProblemHubRow,
-  isProblemHubRowLegacy,
-  buildLmFraudOverlapHubs,
+  isFwdProblemHotspotRow,
+  buildFwdProblemHubStack,
 } from "./lib/analytics.js";
 import { buildExportFilename, downloadCsv, shortCount } from "./lib/csvExport.js";
 import {
@@ -363,6 +362,7 @@ function stripExportRows(rows, fields) {
   });
 }
 
+const HOTSPOTS_INITIAL_VISIBLE = 5;
 const POC_PRODUCTIVITY_CARD_LIMIT = 10;
 
 function formatPocProductivityPercent(ratio) {
@@ -378,9 +378,10 @@ const POC_SPARKLINE_PALETTE = [
   { border: "rgb(192 38 211)", fill: "rgba(192, 38, 211, 0.12)" },
 ];
 
-/** Hub charts: problematic volume (excl. REV proper bagging & FWD short found) */
-const HUB_BAR_PROBLEM_REV = "rgba(13, 148, 136, 0.9)";
-const HUB_BAR_PROBLEM_FWD = "rgba(217, 119, 6, 0.92)";
+/** Shadowfax-themed horizontal bar fills for hub issue charts */
+const HUB_BAR_PARTIAL = "rgba(213, 210, 38, 0.92)";
+const HUB_BAR_FRAUD = "rgba(185, 28, 28, 0.92)";
+const HUB_BAR_CAMERA = "rgba(0, 138, 113, 0.92)";
 const HUB_BAR_SHORT_FWD = "rgba(251, 191, 36, 0.92)";
 
 function HorizontalBarChart({ labels, values, color, onBarSelect }) {
@@ -456,7 +457,7 @@ function HorizontalBarChart({ labels, values, color, onBarSelect }) {
   );
 }
 
-function HorizontalGroupedBarChart({ labels, datasets, onBarSelect }) {
+function HorizontalStackedBarChart({ labels, datasets }) {
   const { isDark } = useTheme();
   const barGrid = useMemo(
     () => ({
@@ -472,24 +473,17 @@ function HorizontalGroupedBarChart({ labels, datasets, onBarSelect }) {
       datasets: datasets.map((d) => ({
         ...d,
         borderRadius: 4,
-        barThickness: 12,
+        barThickness: 14,
       })),
     }),
     [labels, datasets]
   );
-
-  const tickColor = isDark ? "#94a3b8" : "#64748b";
 
   const options = useMemo(
     () => ({
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      onClick: (_evt, elements) => {
-        if (!onBarSelect || !elements?.length) return;
-        const idx = elements[0].index;
-        if (typeof idx === "number" && idx >= 0) onBarSelect(idx);
-      },
       plugins: {
         legend: {
           display: true,
@@ -503,26 +497,28 @@ function HorizontalGroupedBarChart({ labels, datasets, onBarSelect }) {
       },
       scales: {
         x: {
+          stacked: true,
           beginAtZero: true,
           grid: { ...barGrid, drawBorder: false },
-          ticks: { font: { size: 11 }, color: tickColor },
+          ticks: {
+            font: { size: 11 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
         },
         y: {
+          stacked: true,
           grid: { display: false, drawBorder: false },
-          ticks: { font: { size: 11 }, color: tickColor },
+          ticks: {
+            font: { size: 11 },
+            color: isDark ? "#94a3b8" : "#64748b",
+          },
         },
       },
     }),
-    [barGrid, tickColor, onBarSelect]
+    [barGrid, isDark]
   );
 
-  return (
-    <Bar
-      data={data}
-      options={options}
-      style={onBarSelect ? { cursor: "pointer" } : undefined}
-    />
-  );
+  return <Bar data={data} options={options} />;
 }
 
 function issueTrendPillClass(direction) {
@@ -725,6 +721,9 @@ export default function App() {
   const [colMap, setColMap] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
+  const [hotspotsExpanded, setHotspotsExpanded] = useState(false);
+  const [hotspotsExpandedRev, setHotspotsExpandedRev] = useState(false);
+  const [hotspotsExpandedFwd, setHotspotsExpandedFwd] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const v = readStoredUi()?.activeTab;
     return v === "dashboard" || v === "camera" || v === "data" ? v : "dashboard";
@@ -878,6 +877,12 @@ export default function App() {
       ? "rgba(148, 163, 184, 0.18)"
       : "rgba(15, 23, 42, 0.08)";
   }, [isDark]);
+
+  useEffect(() => {
+    setHotspotsExpanded(false);
+    setHotspotsExpandedRev(false);
+    setHotspotsExpandedFwd(false);
+  }, [fileName]);
 
   useEffect(() => {
     setDataTablePage(0);
@@ -1215,53 +1220,191 @@ export default function App() {
     [fwdScopedRows]
   );
 
-  const problemHubRowsRev = useMemo(
-    () => (hasMovementColumn ? revScopedRows.filter(isRevProblemHubRow) : []),
-    [hasMovementColumn, revScopedRows]
-  );
-
-  const problemHubRowsFwd = useMemo(
-    () => (hasMovementColumn ? fwdScopedRows.filter(isFwdProblemHubRow) : []),
-    [hasMovementColumn, fwdScopedRows]
-  );
-
-  const problemHubPairsRev = useMemo(
-    () => aggregateByField(problemHubRowsRev, colMapSafe.hub, 12),
-    [problemHubRowsRev, colMapSafe.hub]
-  );
-
-  const problemHubPairsFwd = useMemo(
-    () => aggregateByField(problemHubRowsFwd, colMapSafe.hub, 12),
-    [problemHubRowsFwd, colMapSafe.hub]
-  );
-
-  const problemHubRowsLegacy = useMemo(
-    () => (!hasMovementColumn ? filtered.filter(isProblemHubRowLegacy) : []),
+  const hotspotRowsLegacy = useMemo(
+    () => (!hasMovementColumn ? filterRowsForHotspots(filtered) : []),
     [hasMovementColumn, filtered]
   );
 
-  const problemHubPairsLegacy = useMemo(
-    () => aggregateByField(problemHubRowsLegacy, colMapSafe.hub, 12),
-    [problemHubRowsLegacy, colMapSafe.hub]
+  const hotspotRowsRev = useMemo(
+    () => (hasMovementColumn ? filterRowsForHotspots(revScopedRows) : []),
+    [hasMovementColumn, revScopedRows]
   );
 
-  const lmFraudOverlapHubs = useMemo(
+  const hotspotRowsFwd = useMemo(
+    () => (hasMovementColumn ? fwdScopedRows.filter(isFwdProblemHotspotRow) : []),
+    [hasMovementColumn, fwdScopedRows]
+  );
+
+  const hotspotPairsLegacy = useMemo(
+    () => aggregateByField(hotspotRowsLegacy, colMapSafe.hub, 15),
+    [hotspotRowsLegacy, colMapSafe.hub]
+  );
+
+  const hotspotPairsRev = useMemo(
+    () => aggregateByField(hotspotRowsRev, colMapSafe.hub, 15),
+    [hotspotRowsRev, colMapSafe.hub]
+  );
+
+  const hotspotPairsFwd = useMemo(
+    () => aggregateByField(hotspotRowsFwd, colMapSafe.hub, 15),
+    [hotspotRowsFwd, colMapSafe.hub]
+  );
+
+  const showHotspotSplit = hasMovementColumn && movementFilter === "all";
+
+  const hotspotPairsSingle = useMemo(() => {
+    if (showHotspotSplit) return [];
+    if (!hasMovementColumn) return hotspotPairsLegacy;
+    if (movementFilter === "rev") return hotspotPairsRev;
+    if (movementFilter === "fwd") return hotspotPairsFwd;
+    return hotspotPairsLegacy;
+  }, [
+    showHotspotSplit,
+    hasMovementColumn,
+    movementFilter,
+    hotspotPairsLegacy,
+    hotspotPairsRev,
+    hotspotPairsFwd,
+  ]);
+
+  const hotspotRowsSingle = useMemo(() => {
+    if (showHotspotSplit) return [];
+    if (!hasMovementColumn) return hotspotRowsLegacy;
+    if (movementFilter === "rev") return hotspotRowsRev;
+    if (movementFilter === "fwd") return hotspotRowsFwd;
+    return hotspotRowsLegacy;
+  }, [
+    showHotspotSplit,
+    hasMovementColumn,
+    movementFilter,
+    hotspotRowsLegacy,
+    hotspotRowsRev,
+    hotspotRowsFwd,
+  ]);
+
+  const hotspotsVisiblePairs = useMemo(
     () =>
-      hasMovementColumn && movementFilter === "all"
-        ? buildLmFraudOverlapHubs(revScopedRows, fwdScopedRows, colMapSafe.hub, 15)
-        : [],
-    [hasMovementColumn, movementFilter, revScopedRows, fwdScopedRows, colMapSafe.hub]
+      hotspotsExpanded
+        ? hotspotPairsSingle
+        : hotspotPairsSingle.slice(0, HOTSPOTS_INITIAL_VISIBLE),
+    [hotspotsExpanded, hotspotPairsSingle]
   );
 
-  const lmFraudOverlapRows = useMemo(() => {
-    const h = colMapSafe.hub;
-    if (!h || lmFraudOverlapHubs.length === 0) return [];
-    const hubSet = new Set(lmFraudOverlapHubs.map((o) => String(o.hub).trim()));
-    const inSet = (r) => hubSet.has(String(r[h] ?? "").trim());
-    const revLm = revScopedRows.filter((r) => r.__kind === "lm_fraud" && inSet(r));
-    const fwdLm = fwdScopedRows.filter((r) => r.__kind === "lm_fraud" && inSet(r));
-    return [...revLm, ...fwdLm];
-  }, [colMapSafe.hub, lmFraudOverlapHubs, revScopedRows, fwdScopedRows]);
+  const hotspotsHasMore = hotspotPairsSingle.length > HOTSPOTS_INITIAL_VISIBLE;
+
+  const hotspotsVisibleRev = useMemo(
+    () =>
+      hotspotsExpandedRev
+        ? hotspotPairsRev
+        : hotspotPairsRev.slice(0, HOTSPOTS_INITIAL_VISIBLE),
+    [hotspotsExpandedRev, hotspotPairsRev]
+  );
+
+  const hotspotsVisibleFwd = useMemo(
+    () =>
+      hotspotsExpandedFwd
+        ? hotspotPairsFwd
+        : hotspotPairsFwd.slice(0, HOTSPOTS_INITIAL_VISIBLE),
+    [hotspotsExpandedFwd, hotspotPairsFwd]
+  );
+
+  const hotspotsHasMoreRev = hotspotPairsRev.length > HOTSPOTS_INITIAL_VISIBLE;
+  const hotspotsHasMoreFwd = hotspotPairsFwd.length > HOTSPOTS_INITIAL_VISIBLE;
+
+  const partialHub = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(filtered, "all", "partial_bagging"),
+        colMapSafe.hub,
+        10
+      ),
+    [filtered, colMapSafe.hub]
+  );
+
+  const partialHubRev = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(revScopedRows, "all", "partial_bagging"),
+        colMapSafe.hub,
+        10
+      ),
+    [revScopedRows, colMapSafe.hub]
+  );
+
+  const partialHubFwd = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(fwdScopedRows, "all", "partial_bagging"),
+        colMapSafe.hub,
+        10
+      ),
+    [fwdScopedRows, colMapSafe.hub]
+  );
+
+  const fraudHub = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(filtered, "all", "lm_fraud"),
+        colMapSafe.hub,
+        10
+      ),
+    [filtered, colMapSafe.hub]
+  );
+
+  const fraudHubRev = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(revScopedRows, "all", "lm_fraud"),
+        colMapSafe.hub,
+        10
+      ),
+    [revScopedRows, colMapSafe.hub]
+  );
+
+  const fraudHubFwd = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(fwdScopedRows, "all", "lm_fraud"),
+        colMapSafe.hub,
+        10
+      ),
+    [fwdScopedRows, colMapSafe.hub]
+  );
+
+  const cameraHub = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(filtered, "all", "camera_issues"),
+        colMapSafe.hub,
+        10
+      ),
+    [filtered, colMapSafe.hub]
+  );
+
+  const cameraHubRev = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(revScopedRows, "all", "camera_issues"),
+        colMapSafe.hub,
+        10
+      ),
+    [revScopedRows, colMapSafe.hub]
+  );
+
+  const cameraHubFwd = useMemo(
+    () =>
+      aggregateByField(
+        issueSlice(fwdScopedRows, "all", "camera_issues"),
+        colMapSafe.hub,
+        10
+      ),
+    [fwdScopedRows, colMapSafe.hub]
+  );
+
+  const fwdProblemHubStack = useMemo(
+    () => buildFwdProblemHubStack(fwdScopedRows, colMapSafe.hub, 12),
+    [fwdScopedRows, colMapSafe.hub]
+  );
 
   const fwdShortFoundHubPairs = useMemo(
     () =>
@@ -1273,7 +1416,7 @@ export default function App() {
     [fwdScopedRows, colMapSafe.hub]
   );
 
-  const showFwdShortFoundChart =
+  const showFwdHubCharts =
     hasMovementColumn && colMapSafe.hub && (movementFilter === "all" || movementFilter === "fwd");
 
   const recentIssuesSorted = useMemo(() => {
@@ -4168,272 +4311,696 @@ export default function App() {
               )}
             </div>
 
-            {colMapSafe.hub ? (
-              <div className="space-y-4">
-                {hasMovementColumn ? (
-                  <>
-                    <div className="surface-card border-l-4 border-sfx dark:border-sfx-cta">
-                      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                        Hub performance
-                      </h2>
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                        Problem counts drop <span className="font-medium">proper bagging (REV)</span> and{" "}
-                        <span className="font-medium">short found (FWD)</span> as trusted signals. Pending rows still count.
-                        LM fraud / process breach counts as a problem in whichever movement it appears.
-                      </p>
-                    </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      {(movementFilter === "all" || movementFilter === "rev") && (
-                        <ChartCard
-                          title="Problematic hubs (REV)"
-                          icon="◀"
-                          pairs={problemHubPairsRev}
-                          color={HUB_BAR_PROBLEM_REV}
-                          rowsVariant="red"
-                          onDownloadSummary={() =>
-                            downloadAggregateCsv("problematic-hubs-rev-summary.csv", problemHubPairsRev)
-                          }
-                          onDownloadRows={() =>
-                            downloadCsv(
-                              dashCsvName("problematic-hubs-rev-rows"),
-                              stripExportRows(problemHubRowsRev, exportFields),
-                              exportFields
-                            )
-                          }
-                          onBarSlice={(hub) => {
-                            if (!colMapSafe.hub) return;
-                            downloadCsv(
-                              dashCsvName("problematic-hub-rev", hub),
-                              stripExportRows(
-                                problemHubRowsRev.filter(
-                                  (r) =>
-                                    String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
-                                ),
-                                exportFields
-                              ),
-                              exportFields
-                            );
-                          }}
-                          rowCount={problemHubRowsRev.length}
-                        />
-                      )}
-                      {(movementFilter === "all" || movementFilter === "fwd") && (
-                        <ChartCard
-                          title="Problematic hubs (FWD)"
-                          icon="▶"
-                          pairs={problemHubPairsFwd}
-                          color={HUB_BAR_PROBLEM_FWD}
-                          rowsVariant="red"
-                          onDownloadSummary={() =>
-                            downloadAggregateCsv("problematic-hubs-fwd-summary.csv", problemHubPairsFwd)
-                          }
-                          onDownloadRows={() =>
-                            downloadCsv(
-                              dashCsvName("problematic-hubs-fwd-rows"),
-                              stripExportRows(problemHubRowsFwd, exportFields),
-                              exportFields
-                            )
-                          }
-                          onBarSlice={(hub) => {
-                            if (!colMapSafe.hub) return;
-                            downloadCsv(
-                              dashCsvName("problematic-hub-fwd", hub),
-                              stripExportRows(
-                                problemHubRowsFwd.filter(
-                                  (r) =>
-                                    String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
-                                ),
-                                exportFields
-                              ),
-                              exportFields
-                            );
-                          }}
-                          rowCount={problemHubRowsFwd.length}
-                        />
-                      )}
-                    </div>
-                    {movementFilter === "all" && lmFraudOverlapHubs.length > 0 ? (
-                      <div className="surface-card border-l-4 border-red-600/70 dark:border-red-400/60">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                          <div>
-                            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-                              Target: LM fraud / process breach on both REV and FWD
-                            </h2>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              Hubs with this issue in both movements — prioritize field intervention here.
-                            </p>
+            <div className="surface-card">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                    {showHotspotSplit ? "Issue hotspots by movement" : "Issue Hotspots"}
+                  </h2>
+                  {showHotspotSplit ? (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      FWD list excludes short found (visibility only); includes hub problems, camera, debagging, bagging gap,
+                      not centralized, etc.
+                    </p>
+                  ) : null}
+                </div>
+                {showHotspotSplit ? (
+                  <div className="flex flex-wrap gap-2">
+                    <DownloadBtn
+                      count={hotspotPairsRev.reduce((s, [, v]) => s + v, 0)}
+                      variant="outline"
+                      label="Hotspots (REV)"
+                      onClickSlice={() => downloadAggregateCsv("issue-hotspots-rev.csv", hotspotPairsRev)}
+                    />
+                    <DownloadBtn
+                      count={hotspotPairsFwd.reduce((s, [, v]) => s + v, 0)}
+                      variant="outline"
+                      label="Hotspots (FWD)"
+                      onClickSlice={() => downloadAggregateCsv("issue-hotspots-fwd.csv", hotspotPairsFwd)}
+                    />
+                  </div>
+                ) : (
+                  <DownloadBtn
+                    count={hotspotPairsSingle.reduce((s, [, v]) => s + v, 0)}
+                    variant="outline"
+                    label="Issue hotspots"
+                    onClickSlice={() => downloadAggregateCsv("issue-hotspots.csv", hotspotPairsSingle)}
+                  />
+                )}
+              </div>
+              {showHotspotSplit ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="min-w-0">
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-sfx dark:text-sfx-cta">
+                      Reverse (REV)
+                    </h3>
+                    <ol className="space-y-2" aria-label="Issue hotspots by hub reverse">
+                      {hotspotsVisibleRev.map(([hub, n], i) => (
+                        <li
+                          key={`rev-${hub}`}
+                          className="surface-muted flex items-center justify-between px-3 py-2"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                                i === 0
+                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200"
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{hub}</span>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <DownloadBtn
-                              count={lmFraudOverlapHubs.reduce((s, o) => s + o.total, 0)}
-                              variant="slate"
-                              label="Overlap summary"
-                              onClickSlice={() =>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400"
+                              title={`Download hotspot rows for ${hub}`}
+                              onClick={() =>
                                 downloadCsv(
-                                  dashCsvName("lm-fraud-overlap-hubs-summary.csv"),
-                                  lmFraudOverlapHubs.map((o) => ({
-                                    hub: o.hub,
-                                    rev: o.rev,
-                                    fwd: o.fwd,
-                                    total: o.total,
-                                  })),
-                                  ["hub", "rev", "fwd", "total"]
-                                )
-                              }
-                            />
-                            <DownloadBtn
-                              count={lmFraudOverlapRows.length}
-                              variant="red"
-                              label="All overlap rows"
-                              onClickSlice={() =>
-                                downloadCsv(
-                                  dashCsvName("lm-fraud-overlap-all-rows"),
-                                  stripExportRows(lmFraudOverlapRows, exportFields),
-                                  exportFields
-                                )
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="h-72 min-h-[16rem] w-full min-w-0 sm:h-80">
-                          <HorizontalGroupedBarChart
-                            labels={lmFraudOverlapHubs.map((o) => o.hub)}
-                            datasets={[
-                              {
-                                label: "REV",
-                                data: lmFraudOverlapHubs.map((o) => o.rev),
-                                backgroundColor: HUB_BAR_PROBLEM_REV,
-                              },
-                              {
-                                label: "FWD",
-                                data: lmFraudOverlapHubs.map((o) => o.fwd),
-                                backgroundColor: HUB_BAR_PROBLEM_FWD,
-                              },
-                            ]}
-                            onBarSelect={(idx) => {
-                              const hub = lmFraudOverlapHubs[idx]?.hub;
-                              if (hub == null || !colMapSafe.hub) return;
-                              const rows = lmFraudOverlapRows.filter(
-                                (r) =>
-                                  String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
-                              );
-                              downloadCsv(
-                                dashCsvName("lm-fraud-overlap-hub", hub),
-                                stripExportRows(rows, exportFields),
-                                exportFields
-                              );
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                    {showFwdShortFoundChart ? (
-                      <div className="surface-card">
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                          <div>
-                            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
-                              Short found by hub (FWD)
-                            </h2>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              Confirms hubs reporting shorts on forward — excluded from problematic FWD counts above.
-                            </p>
-                          </div>
-                          <DownloadBtn
-                            count={fwdScopedRows.filter(isFwdShortFoundRow).length}
-                            variant="slate"
-                            label="Short found rows"
-                            onClickSlice={() =>
-                              downloadCsv(
-                                dashCsvName("fwd-short-found-all-rows"),
-                                stripExportRows(fwdScopedRows.filter(isFwdShortFoundRow), exportFields),
-                                exportFields
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64 md:h-72">
-                          {fwdShortFoundHubPairs.length ? (
-                            <HorizontalBarChart
-                              labels={fwdShortFoundHubPairs.map(([l]) => l)}
-                              values={fwdShortFoundHubPairs.map(([, v]) => v)}
-                              color={HUB_BAR_SHORT_FWD}
-                              onBarSelect={(idx) => {
-                                const hub = fwdShortFoundHubPairs[idx]?.[0];
-                                if (hub == null || !colMapSafe.hub) return;
-                                downloadCsv(
-                                  dashCsvName("fwd-short-found-hub", hub),
+                                  dashCsvName("hub-hotspot-rev", hub),
                                   stripExportRows(
-                                    fwdScopedRows
-                                      .filter(isFwdShortFoundRow)
-                                      .filter(
-                                        (r) =>
-                                          String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
-                                      ),
+                                    hotspotRowsRev.filter(
+                                      (r) =>
+                                        String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                                    ),
                                     exportFields
                                   ),
                                   exportFields
-                                );
-                              }}
-                            />
-                          ) : (
-                            <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
-                              No short found data
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                                )
+                              }
+                            >
+                              {n}
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                              title={`Download hotspot rows for ${hub}`}
+                              onClick={() =>
+                                downloadCsv(
+                                  dashCsvName("hub-hotspot-rev", hub),
+                                  stripExportRows(
+                                    hotspotRowsRev.filter(
+                                      (r) =>
+                                        String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                                    ),
+                                    exportFields
+                                  ),
+                                  exportFields
+                                )
+                              }
+                            >
+                              <DownloadIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {hotspotsHasMoreRev ? (
+                      <button
+                        type="button"
+                        className="mt-3 w-full rounded-xl border border-slate-200/90 bg-slate-50/90 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-600/70 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+                        aria-expanded={hotspotsExpandedRev}
+                        onClick={() => setHotspotsExpandedRev((v) => !v)}
+                      >
+                        {hotspotsExpandedRev
+                          ? `Show top ${HOTSPOTS_INITIAL_VISIBLE} only`
+                          : `Show all ${hotspotPairsRev.length} hubs`}
+                      </button>
                     ) : null}
-                  </>
-                ) : (
-                  <>
-                    <div className="surface-card">
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                        No movement column detected — hub chart uses all rows except closed, proper bagging, and FWD short
-                        found (when movement is forward).
-                      </p>
-                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                      Forward (FWD)
+                    </h3>
+                    <ol className="space-y-2" aria-label="Issue hotspots by hub forward">
+                      {hotspotsVisibleFwd.map(([hub, n], i) => (
+                        <li
+                          key={`fwd-${hub}`}
+                          className="surface-muted flex items-center justify-between px-3 py-2"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                                i === 0
+                                  ? "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200"
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{hub}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400"
+                              title={`Download hotspot rows for ${hub}`}
+                              onClick={() =>
+                                downloadCsv(
+                                  dashCsvName("hub-hotspot-fwd", hub),
+                                  stripExportRows(
+                                    hotspotRowsFwd.filter(
+                                      (r) =>
+                                        String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                                    ),
+                                    exportFields
+                                  ),
+                                  exportFields
+                                )
+                              }
+                            >
+                              {n}
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                              title={`Download hotspot rows for ${hub}`}
+                              onClick={() =>
+                                downloadCsv(
+                                  dashCsvName("hub-hotspot-fwd", hub),
+                                  stripExportRows(
+                                    hotspotRowsFwd.filter(
+                                      (r) =>
+                                        String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                                    ),
+                                    exportFields
+                                  ),
+                                  exportFields
+                                )
+                              }
+                            >
+                              <DownloadIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {hotspotsHasMoreFwd ? (
+                      <button
+                        type="button"
+                        className="mt-3 w-full rounded-xl border border-slate-200/90 bg-slate-50/90 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-600/70 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+                        aria-expanded={hotspotsExpandedFwd}
+                        onClick={() => setHotspotsExpandedFwd((v) => !v)}
+                      >
+                        {hotspotsExpandedFwd
+                          ? `Show top ${HOTSPOTS_INITIAL_VISIBLE} only`
+                          : `Show all ${hotspotPairsFwd.length} hubs`}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <ol className="space-y-2" aria-label="Issue hotspots by hub">
+                    {hotspotsVisiblePairs.map(([hub, n], i) => (
+                      <li
+                        key={hub}
+                        className="surface-muted flex items-center justify-between px-3 py-2"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                              i === 0
+                                ? "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-300"
+                            }`}
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200">{hub}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="tabular-nums text-slate-600 underline decoration-slate-400/50 decoration-dotted underline-offset-2 hover:text-sfx dark:text-slate-400 dark:decoration-slate-500 dark:hover:text-sfx-cta"
+                            title={`Download hotspot rows for ${hub}`}
+                            onClick={() =>
+                              downloadCsv(
+                                dashCsvName("hub-hotspot", hub),
+                                stripExportRows(
+                                  hotspotRowsSingle.filter(
+                                    (r) =>
+                                      String(r[colMapSafe.hub] ?? "").trim() ===
+                                      String(hub).trim()
+                                  ),
+                                  exportFields
+                                ),
+                                exportFields
+                              )
+                            }
+                          >
+                            {n}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200/90 bg-white/90 p-1.5 text-slate-500 shadow-sm transition-all hover:bg-white dark:border-slate-600/70 dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                            title={`Download hotspot rows for ${hub}`}
+                            onClick={() =>
+                              downloadCsv(
+                                dashCsvName("hub-hotspot", hub),
+                                stripExportRows(
+                                  hotspotRowsSingle.filter(
+                                    (r) =>
+                                      String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                                  ),
+                                  exportFields
+                                ),
+                                exportFields
+                              )
+                            }
+                          >
+                            <DownloadIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {hotspotsHasMore ? (
+                    <button
+                      type="button"
+                      className="mt-3 w-full rounded-xl border border-slate-200/90 bg-slate-50/90 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-600/70 dark:bg-slate-800/50 dark:text-slate-200 dark:hover:bg-slate-800"
+                      aria-expanded={hotspotsExpanded}
+                      onClick={() => setHotspotsExpanded((v) => !v)}
+                    >
+                      {hotspotsExpanded
+                        ? `Show top ${HOTSPOTS_INITIAL_VISIBLE} only`
+                        : `Show all ${hotspotPairsSingle.length} hubs`}
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-1">
+              {hasMovementColumn && movementFilter === "all" ? (
+                <>
+                  <div className="grid gap-4 lg:grid-cols-2">
                     <ChartCard
-                      title="Problematic hubs"
-                      icon="⚠"
-                      pairs={problemHubPairsLegacy}
-                      color="rgba(100, 116, 139, 0.9)"
-                      rowsVariant="red"
+                      title="Partial Bagging by Hub (REV)"
+                      icon="📦"
+                      pairs={partialHubRev}
+                      color={HUB_BAR_PARTIAL}
+                      rowsVariant="sfxYellow"
                       onDownloadSummary={() =>
-                        downloadAggregateCsv("problematic-hubs-summary.csv", problemHubPairsLegacy)
+                        downloadAggregateCsv("partial-bagging-by-hub-rev-summary.csv", partialHubRev)
                       }
                       onDownloadRows={() =>
                         downloadCsv(
-                          dashCsvName("problematic-hubs-rows"),
-                          stripExportRows(problemHubRowsLegacy, exportFields),
+                          dashCsvName("partial-bagging-by-hub-rev-rows"),
+                          stripExportRows(
+                            issueSlice(revScopedRows, "all", "partial_bagging"),
+                            exportFields
+                          ),
                           exportFields
                         )
                       }
                       onBarSlice={(hub) => {
                         if (!colMapSafe.hub) return;
                         downloadCsv(
-                          dashCsvName("problematic-hub", hub),
+                          dashCsvName("partial-bagging-hub-rev", hub),
                           stripExportRows(
-                            problemHubRowsLegacy.filter(
-                              (r) =>
-                                String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            issueSlice(revScopedRows, "all", "partial_bagging").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
                             ),
                             exportFields
                           ),
                           exportFields
                         );
                       }}
-                      rowCount={problemHubRowsLegacy.length}
+                      rowCount={issueSlice(revScopedRows, "all", "partial_bagging").length}
                     />
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="surface-card">
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Map a hub column to see hub-level charts.
-                </p>
-              </div>
-            )}
+                    <ChartCard
+                      title="Partial Bagging by Hub (FWD)"
+                      icon="📦"
+                      pairs={partialHubFwd}
+                      color={HUB_BAR_PARTIAL}
+                      rowsVariant="sfxYellow"
+                      onDownloadSummary={() =>
+                        downloadAggregateCsv("partial-bagging-by-hub-fwd-summary.csv", partialHubFwd)
+                      }
+                      onDownloadRows={() =>
+                        downloadCsv(
+                          dashCsvName("partial-bagging-by-hub-fwd-rows"),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "partial_bagging"),
+                            exportFields
+                          ),
+                          exportFields
+                        )
+                      }
+                      onBarSlice={(hub) => {
+                        if (!colMapSafe.hub) return;
+                        downloadCsv(
+                          dashCsvName("partial-bagging-hub-fwd", hub),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "partial_bagging").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        );
+                      }}
+                      rowCount={issueSlice(fwdScopedRows, "all", "partial_bagging").length}
+                    />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <ChartCard
+                      title="LM Fraud by Hub (REV)"
+                      icon="⚠"
+                      pairs={fraudHubRev}
+                      color={HUB_BAR_FRAUD}
+                      rowsVariant="red"
+                      onDownloadSummary={() =>
+                        downloadAggregateCsv("lm-fraud-by-hub-rev-summary.csv", fraudHubRev)
+                      }
+                      onDownloadRows={() =>
+                        downloadCsv(
+                          dashCsvName("lm-fraud-by-hub-rev-rows"),
+                          stripExportRows(
+                            issueSlice(revScopedRows, "all", "lm_fraud"),
+                            exportFields
+                          ),
+                          exportFields
+                        )
+                      }
+                      onBarSlice={(hub) => {
+                        if (!colMapSafe.hub) return;
+                        downloadCsv(
+                          dashCsvName("lm-fraud-hub-rev", hub),
+                          stripExportRows(
+                            issueSlice(revScopedRows, "all", "lm_fraud").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        );
+                      }}
+                      rowCount={issueSlice(revScopedRows, "all", "lm_fraud").length}
+                    />
+                    <ChartCard
+                      title="LM Fraud by Hub (FWD)"
+                      icon="⚠"
+                      pairs={fraudHubFwd}
+                      color={HUB_BAR_FRAUD}
+                      rowsVariant="red"
+                      onDownloadSummary={() =>
+                        downloadAggregateCsv("lm-fraud-by-hub-fwd-summary.csv", fraudHubFwd)
+                      }
+                      onDownloadRows={() =>
+                        downloadCsv(
+                          dashCsvName("lm-fraud-by-hub-fwd-rows"),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "lm_fraud"),
+                            exportFields
+                          ),
+                          exportFields
+                        )
+                      }
+                      onBarSlice={(hub) => {
+                        if (!colMapSafe.hub) return;
+                        downloadCsv(
+                          dashCsvName("lm-fraud-hub-fwd", hub),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "lm_fraud").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        );
+                      }}
+                      rowCount={issueSlice(fwdScopedRows, "all", "lm_fraud").length}
+                    />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <ChartCard
+                      title="Camera Issues by Hub (REV)"
+                      icon="📹"
+                      pairs={cameraHubRev}
+                      color={HUB_BAR_CAMERA}
+                      rowsVariant="blue"
+                      onDownloadSummary={() =>
+                        downloadAggregateCsv("camera-issues-by-hub-rev-summary.csv", cameraHubRev)
+                      }
+                      onDownloadRows={() =>
+                        downloadCsv(
+                          dashCsvName("camera-issues-by-hub-rev-rows"),
+                          stripExportRows(
+                            issueSlice(revScopedRows, "all", "camera_issues"),
+                            exportFields
+                          ),
+                          exportFields
+                        )
+                      }
+                      onBarSlice={(hub) => {
+                        if (!colMapSafe.hub) return;
+                        downloadCsv(
+                          dashCsvName("camera-issues-hub-rev", hub),
+                          stripExportRows(
+                            issueSlice(revScopedRows, "all", "camera_issues").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        );
+                      }}
+                      rowCount={issueSlice(revScopedRows, "all", "camera_issues").length}
+                    />
+                    <ChartCard
+                      title="Camera Issues by Hub (FWD)"
+                      icon="📹"
+                      pairs={cameraHubFwd}
+                      color={HUB_BAR_CAMERA}
+                      rowsVariant="blue"
+                      onDownloadSummary={() =>
+                        downloadAggregateCsv("camera-issues-by-hub-fwd-summary.csv", cameraHubFwd)
+                      }
+                      onDownloadRows={() =>
+                        downloadCsv(
+                          dashCsvName("camera-issues-by-hub-fwd-rows"),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "camera_issues"),
+                            exportFields
+                          ),
+                          exportFields
+                        )
+                      }
+                      onBarSlice={(hub) => {
+                        if (!colMapSafe.hub) return;
+                        downloadCsv(
+                          dashCsvName("camera-issues-hub-fwd", hub),
+                          stripExportRows(
+                            issueSlice(fwdScopedRows, "all", "camera_issues").filter(
+                              (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                            ),
+                            exportFields
+                          ),
+                          exportFields
+                        );
+                      }}
+                      rowCount={issueSlice(fwdScopedRows, "all", "camera_issues").length}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ChartCard
+                    title="Partial Bagging by Hub"
+                    icon="📦"
+                    pairs={partialHub}
+                    color={HUB_BAR_PARTIAL}
+                    rowsVariant="sfxYellow"
+                    onDownloadSummary={() =>
+                      downloadAggregateCsv("partial-bagging-by-hub-summary.csv", partialHub)
+                    }
+                    onDownloadRows={() =>
+                      downloadCsv(
+                        dashCsvName("partial-bagging-by-hub-rows"),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "partial_bagging"),
+                          exportFields
+                        ),
+                        exportFields
+                      )
+                    }
+                    onBarSlice={(hub) => {
+                      if (!colMapSafe.hub) return;
+                      downloadCsv(
+                        dashCsvName("partial-bagging-hub", hub),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "partial_bagging").filter(
+                            (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                          ),
+                          exportFields
+                        ),
+                        exportFields
+                      );
+                    }}
+                    rowCount={issueSlice(filtered, "all", "partial_bagging").length}
+                  />
+                  <ChartCard
+                    title="LM Fraud by Hub"
+                    icon="⚠"
+                    pairs={fraudHub}
+                    color={HUB_BAR_FRAUD}
+                    rowsVariant="red"
+                    onDownloadSummary={() =>
+                      downloadAggregateCsv("lm-fraud-by-hub-summary.csv", fraudHub)
+                    }
+                    onDownloadRows={() =>
+                      downloadCsv(
+                        dashCsvName("lm-fraud-by-hub-rows"),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "lm_fraud"),
+                          exportFields
+                        ),
+                        exportFields
+                      )
+                    }
+                    onBarSlice={(hub) => {
+                      if (!colMapSafe.hub) return;
+                      downloadCsv(
+                        dashCsvName("lm-fraud-hub", hub),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "lm_fraud").filter(
+                            (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                          ),
+                          exportFields
+                        ),
+                        exportFields
+                      );
+                    }}
+                    rowCount={issueSlice(filtered, "all", "lm_fraud").length}
+                  />
+                  <ChartCard
+                    title="Camera Issues by Hub"
+                    icon="📹"
+                    pairs={cameraHub}
+                    color={HUB_BAR_CAMERA}
+                    rowsVariant="blue"
+                    onDownloadSummary={() =>
+                      downloadAggregateCsv("camera-issues-by-hub-summary.csv", cameraHub)
+                    }
+                    onDownloadRows={() =>
+                      downloadCsv(
+                        dashCsvName("camera-issues-by-hub-rows"),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "camera_issues"),
+                          exportFields
+                        ),
+                        exportFields
+                      )
+                    }
+                    onBarSlice={(hub) => {
+                      if (!colMapSafe.hub) return;
+                      downloadCsv(
+                        dashCsvName("camera-issues-hub", hub),
+                        stripExportRows(
+                          issueSlice(filtered, "all", "camera_issues").filter(
+                            (r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()
+                          ),
+                          exportFields
+                        ),
+                        exportFields
+                      );
+                    }}
+                    rowCount={issueSlice(filtered, "all", "camera_issues").length}
+                  />
+                </>
+              )}
+              {showFwdHubCharts ? (
+                <>
+                  <div className="surface-card">
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                          FWD problem hubs (excl. short found)
+                        </h2>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Stacked counts by issue type per hub — no short, camera, debagging, bagging gap, not centralized,
+                          partial, fraud, other.
+                        </p>
+                      </div>
+                      <DownloadBtn
+                        count={fwdScopedRows.filter(isFwdProblemHotspotRow).length}
+                        variant="slate"
+                        label="All FWD problem rows"
+                        onClickSlice={() =>
+                          downloadCsv(
+                            dashCsvName("fwd-problem-hubs-all-rows"),
+                            stripExportRows(fwdScopedRows.filter(isFwdProblemHotspotRow), exportFields),
+                            exportFields
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="h-[28rem] min-h-[22rem] w-full min-w-0 sm:h-[32rem]">
+                      {fwdProblemHubStack.labels.length && fwdProblemHubStack.datasets.length ? (
+                        <HorizontalStackedBarChart
+                          labels={fwdProblemHubStack.labels}
+                          datasets={fwdProblemHubStack.datasets}
+                        />
+                      ) : (
+                        <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
+                          No FWD problem data
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="surface-card">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">
+                        Short found by hub (FWD)
+                      </h2>
+                      <DownloadBtn
+                        count={fwdScopedRows.filter(isFwdShortFoundRow).length}
+                        variant="slate"
+                        label="Short found rows"
+                        onClickSlice={() =>
+                          downloadCsv(
+                            dashCsvName("fwd-short-found-all-rows"),
+                            stripExportRows(fwdScopedRows.filter(isFwdShortFoundRow), exportFields),
+                            exportFields
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="h-52 min-h-[13rem] w-full min-w-0 sm:h-64 md:h-72">
+                      {fwdShortFoundHubPairs.length ? (
+                        <HorizontalBarChart
+                          labels={fwdShortFoundHubPairs.map(([l]) => l)}
+                          values={fwdShortFoundHubPairs.map(([, v]) => v)}
+                          color={HUB_BAR_SHORT_FWD}
+                          onBarSelect={(idx) => {
+                            const hub = fwdShortFoundHubPairs[idx]?.[0];
+                            if (hub == null || !colMapSafe.hub) return;
+                            downloadCsv(
+                              dashCsvName("fwd-short-found-hub", hub),
+                              stripExportRows(
+                                fwdScopedRows
+                                  .filter(isFwdShortFoundRow)
+                                  .filter((r) => String(r[colMapSafe.hub] ?? "").trim() === String(hub).trim()),
+                                exportFields
+                              ),
+                              exportFields
+                            );
+                          }}
+                        />
+                      ) : (
+                        <p className="flex h-full items-center justify-center text-slate-500 dark:text-slate-500">
+                          No short found data
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
 
             <div className="surface-card">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">

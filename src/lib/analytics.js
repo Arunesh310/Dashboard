@@ -9,7 +9,6 @@ import { getRcaValue, getMovementNormalized, isRcaEmpty } from "./columns.js";
 export function classifyIssue(text) {
   const t = String(text ?? "").toLowerCase();
   if (!t.trim()) return "other";
-  if (t.includes("process breach")) return "lm_fraud";
   if (t.includes("lm fraud") || t.includes("last mile fraud")) return "lm_fraud";
   if (t.includes("fraud") && (t.includes("lm") || t.includes("last mile")))
     return "lm_fraud";
@@ -44,7 +43,7 @@ export function classifyIssue(text) {
 /** Human-readable labels for classified issue kind (Data Table category filter). */
 export const ISSUE_KIND_LABELS = {
   pending: "Pending (no RCA)",
-  lm_fraud: "LM fraud / Process breach",
+  lm_fraud: "LM Fraud",
   partial_bagging: "Partial Bagging",
   proper_bagging: "Proper Bagging",
   camera_issues: "Camera issues",
@@ -181,65 +180,131 @@ export function countByKind(rows) {
   return m;
 }
 
+/** RCA types that count toward Issue Hotspots hub ranking. */
+export const HOTSPOT_ISSUE_KINDS = [
+  "partial_bagging",
+  "lm_fraud",
+  "camera_issues",
+  "multiple_bagging",
+  "unable_to_validate",
+];
+
 /**
- * Reverse: count toward “problematic hub” unless hub is confirmed proper bagging.
- * @param {ReturnType<typeof annotateRows>[number]} r
+ * @param {ReturnType<typeof annotateRows>} rows
  */
-export function isRevProblemHubRow(r) {
-  if (r.__movement !== "rev") return false;
-  if (r.__kind === "closed") return false;
-  if (r.__kind === "proper_bagging") return false;
-  return true;
+export function filterRowsForHotspots(rows) {
+  return rows.filter((r) => HOTSPOT_ISSUE_KINDS.includes(r.__kind));
+}
+
+export function isFwdBaggingGapRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  return t.includes("bagging gap") || t.includes("bagg gap") || t.includes("bagging-gap");
+}
+
+export function isFwdNotCentralizedRcaRemark(text) {
+  const t = String(text ?? "").toLowerCase();
+  return t.includes("not centralized") || t.includes("not centralised");
 }
 
 /**
- * Forward: problematic unless pending-only pendency is excluded… include pending.
- * Excludes proper bagging and short found (trusted hub signals).
+ * FWD issue hotspots: problematic hub behaviour — excludes {@link isFwdShortFoundRow} (visibility only).
  * @param {ReturnType<typeof annotateRows>[number]} r
  */
-export function isFwdProblemHubRow(r) {
-  if (r.__movement !== "fwd") return false;
-  if (r.__kind === "closed") return false;
-  if (r.__pending) return true;
-  if (r.__kind === "proper_bagging") return false;
+export function isFwdProblemHotspotRow(r) {
+  if (r.__movement !== "fwd" || r.__pending) return false;
   if (isFwdShortFoundRow(r)) return false;
-  return true;
+  if (r.__kind === "proper_bagging") return false;
+  if (isFwdHubRiskRow(r)) return true;
+  if (HOTSPOT_ISSUE_KINDS.includes(r.__kind)) return true;
+  const t = String(r.__rcaText ?? "");
+  if (isFwdBaggingGapRemark(t)) return true;
+  if (isFwdNotCentralizedRcaRemark(t)) return true;
+  return false;
 }
 
 /**
- * Files without a movement column: exclude proper bagging, closed, and FWD-style short found when movement is FWD.
+ * Mutually exclusive bucket for stacked “FWD problem by hub” chart.
  * @param {ReturnType<typeof annotateRows>[number]} r
  */
-export function isProblemHubRowLegacy(r) {
-  if (r.__kind === "closed") return false;
-  if (r.__kind === "proper_bagging") return false;
-  if (r.__movement === "fwd" && !r.__pending && isFwdShortFoundRow(r)) return false;
-  return true;
+export function fwdProblemCategoryForRow(r) {
+  if (!isFwdProblemHotspotRow(r)) return null;
+  if (isFwdNoShortRow(r)) return "no_short";
+  if (r.__kind === "camera_issues") return "camera";
+  if (r.__kind === "multiple_bagging") return "debagging";
+  const t = String(r.__rcaText ?? "");
+  if (isFwdBaggingGapRemark(t)) return "bagging_gap";
+  if (isFwdNotCentralizedRcaRemark(t)) return "not_centralized";
+  if (r.__kind === "partial_bagging") return "partial";
+  if (r.__kind === "lm_fraud") return "fraud";
+  return "other";
 }
 
-export function buildLmFraudOverlapHubs(revRows, fwdRows, hubField, limit = 15) {
-  if (!hubField) return [];
-  const revCount = new Map();
-  const fwdCount = new Map();
-  for (const r of revRows) {
-    if (r.__kind !== "lm_fraud") continue;
-    const h = String(r[hubField] ?? "").trim();
-    if (!h) continue;
-    revCount.set(h, (revCount.get(h) ?? 0) + 1);
+const FWD_STACK_ORDER = [
+  "no_short",
+  "camera",
+  "debagging",
+  "bagging_gap",
+  "not_centralized",
+  "partial",
+  "fraud",
+  "other",
+];
+
+const FWD_STACK_LABELS = {
+  no_short: "No short found",
+  camera: "Camera",
+  debagging: "Multiple debagging",
+  bagging_gap: "Bagging gap",
+  not_centralized: "Not centralized",
+  partial: "Partial bagging",
+  fraud: "LM fraud",
+  other: "Other",
+};
+
+const FWD_STACK_COLORS = {
+  no_short: "rgba(220, 38, 38, 0.92)",
+  camera: "rgba(124, 58, 237, 0.92)",
+  debagging: "rgba(234, 88, 12, 0.92)",
+  bagging_gap: "rgba(251, 146, 60, 0.92)",
+  not_centralized: "rgba(59, 130, 246, 0.92)",
+  partial: "rgba(250, 204, 21, 0.92)",
+  fraud: "rgba(185, 28, 28, 0.92)",
+  other: "rgba(100, 116, 139, 0.92)",
+};
+
+/**
+ * Stacked horizontal bar data: top hubs by total FWD problem rows (excluding short found).
+ * @param {ReturnType<typeof annotateRows>} rows
+ * @param {string | null} hubField
+ */
+export function buildFwdProblemHubStack(rows, hubField, hubLimit = 12) {
+  if (!hubField) return { labels: [], datasets: [] };
+  const rowsP = rows.filter(isFwdProblemHotspotRow);
+  const byHub = new Map();
+  for (const r of rowsP) {
+    const hub = String(r[hubField] ?? "").trim() || "Unknown";
+    const cat = fwdProblemCategoryForRow(r);
+    if (!cat) continue;
+    if (!byHub.has(hub)) byHub.set(hub, { total: 0, cats: {} });
+    const o = byHub.get(hub);
+    o.total += 1;
+    o.cats[cat] = (o.cats[cat] ?? 0) + 1;
   }
-  for (const r of fwdRows) {
-    if (r.__kind !== "lm_fraud") continue;
-    const h = String(r[hubField] ?? "").trim();
-    if (!h) continue;
-    fwdCount.set(h, (fwdCount.get(h) ?? 0) + 1);
-  }
-  const out = [];
-  for (const [hub, rev] of revCount) {
-    if (!fwdCount.has(hub)) continue;
-    const fwd = fwdCount.get(hub) ?? 0;
-    out.push({ hub, rev, fwd, total: rev + fwd });
-  }
-  return out.sort((a, b) => b.total - a.total).slice(0, limit);
+  const hubsSorted = [...byHub.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, hubLimit)
+    .map(([h]) => h);
+  if (hubsSorted.length === 0) return { labels: [], datasets: [] };
+  const datasets = FWD_STACK_ORDER.map((key) => ({
+    label: FWD_STACK_LABELS[key],
+    data: hubsSorted.map((hub) => byHub.get(hub)?.cats[key] ?? 0),
+    backgroundColor: FWD_STACK_COLORS[key],
+    stack: "fwdProblem",
+  })).filter((ds) => ds.data.some((v) => v > 0));
+  return {
+    labels: hubsSorted,
+    datasets: datasets.length ? datasets : [],
+  };
 }
 
 /**
