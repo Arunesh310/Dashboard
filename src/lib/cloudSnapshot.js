@@ -4,6 +4,8 @@ import { getFirestoreDb } from "./firebaseClient.js";
 const COLLECTION = "dashboard_snapshot";
 const DOC_ID = "shared";
 const CHUNKS_COLLECTION = "dashboard_snapshot_chunks";
+const DASHBOARD2_COLLECTION = "dashboard2_snapshot";
+const DASHBOARD2_CHUNKS_COLLECTION = "dashboard2_snapshot_chunks";
 const MAX_INLINE_BYTES = 900_000;
 const encoder = new TextEncoder();
 
@@ -44,11 +46,25 @@ function chunkDocId(kind, index) {
   return `${DOC_ID}_${kind}_${index}`;
 }
 
+function chunkDocIdForRoot(rootId, kind, index) {
+  return `${rootId}_${kind}_${index}`;
+}
+
 async function readChunkedText(db, kind, count) {
   if (!count || count < 1) return "";
   const reads = [];
   for (let i = 0; i < count; i += 1) {
     reads.push(getDoc(doc(db, CHUNKS_COLLECTION, chunkDocId(kind, i))));
+  }
+  const docs = await Promise.all(reads);
+  return docs.map((s) => (s.exists() && typeof s.data().text === "string" ? s.data().text : "")).join("");
+}
+
+async function readChunkedTextFrom(db, chunksCollection, rootId, kind, count) {
+  if (!count || count < 1) return "";
+  const reads = [];
+  for (let i = 0; i < count; i += 1) {
+    reads.push(getDoc(doc(db, chunksCollection, chunkDocIdForRoot(rootId, kind, i))));
   }
   const docs = await Promise.all(reads);
   return docs.map((s) => (s.exists() && typeof s.data().text === "string" ? s.data().text : "")).join("");
@@ -69,6 +85,27 @@ async function writeChunkedText(db, kind, text, previousCount) {
   const staleDeletes = [];
   for (let i = chunks.length; i < (previousCount || 0); i += 1) {
     staleDeletes.push(deleteDoc(doc(db, CHUNKS_COLLECTION, chunkDocId(kind, i))));
+  }
+
+  await Promise.all([...writes, ...staleDeletes]);
+  return chunks.length;
+}
+
+async function writeChunkedTextTo(db, chunksCollection, rootId, kind, text, previousCount) {
+  const chunks = splitByByteLength(text, MAX_INLINE_BYTES);
+  const writes = chunks.map((chunk, i) =>
+    setDoc(doc(db, chunksCollection, chunkDocIdForRoot(rootId, kind, i)), {
+      text: chunk,
+      index: i,
+      kind,
+      root_id: rootId,
+      updated_at: new Date().toISOString(),
+    })
+  );
+
+  const staleDeletes = [];
+  for (let i = chunks.length; i < (previousCount || 0); i += 1) {
+    staleDeletes.push(deleteDoc(doc(db, chunksCollection, chunkDocIdForRoot(rootId, kind, i))));
   }
 
   await Promise.all([...writes, ...staleDeletes]);
@@ -217,6 +254,80 @@ export async function saveCameraSnapshot(csvText, fileName) {
       camera_csv_chunk_count: chunkCount,
       camera_file_name: fileName || "camera-status.csv",
       camera_updated_at: updatedAt,
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Dashboard 2.0 snapshot: shared combined dataset (CSV).
+ * Stored separately from the legacy dashboard snapshot.
+ * @returns {Promise<{ csv_text: string; file_name: string; updated_at: string } | null>}
+ */
+export async function loadDashboard2Snapshot() {
+  const db = getFirestoreDb();
+  if (!db) return null;
+  const rootRef = doc(db, DASHBOARD2_COLLECTION, DOC_ID);
+  const snap = await getDoc(rootRef);
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  let csv_text = typeof data.csv_text === "string" ? data.csv_text : "";
+  if (!csv_text && Number.isInteger(data.csv_chunk_count) && data.csv_chunk_count > 0) {
+    csv_text = await readChunkedTextFrom(db, DASHBOARD2_CHUNKS_COLLECTION, DOC_ID, "main", data.csv_chunk_count);
+  }
+  if (!csv_text.trim()) return null;
+  return {
+    csv_text,
+    file_name: typeof data.file_name === "string" ? data.file_name : "dashboard2.csv",
+    updated_at:
+      typeof data.updated_at === "string"
+        ? data.updated_at
+        : data.updated_at?.toDate?.()?.toISOString?.() ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Saves Dashboard 2.0 combined CSV snapshot to Firestore.
+ * @param {string} csvText
+ * @param {string} fileName
+ */
+export async function saveDashboard2Snapshot(csvText, fileName) {
+  const db = getFirestoreDb();
+  if (!db) return;
+  const rootRef = doc(db, DASHBOARD2_COLLECTION, DOC_ID);
+  const current = await getDoc(rootRef);
+  const prevCount = current.exists() ? Number(current.data().csv_chunk_count || 0) : 0;
+  const updatedAt = new Date().toISOString();
+
+  if (byteLength(csvText) <= MAX_INLINE_BYTES) {
+    await setDoc(
+      rootRef,
+      {
+        csv_text: csvText,
+        csv_chunk_count: 0,
+        file_name: fileName || "dashboard2.csv",
+        updated_at: updatedAt,
+      },
+      { merge: true }
+    );
+    if (prevCount > 0) {
+      const staleDeletes = [];
+      for (let i = 0; i < prevCount; i += 1) {
+        staleDeletes.push(deleteDoc(doc(db, DASHBOARD2_CHUNKS_COLLECTION, chunkDocIdForRoot(DOC_ID, "main", i))));
+      }
+      await Promise.all(staleDeletes);
+    }
+    return;
+  }
+
+  const chunkCount = await writeChunkedTextTo(db, DASHBOARD2_CHUNKS_COLLECTION, DOC_ID, "main", csvText, prevCount);
+  await setDoc(
+    rootRef,
+    {
+      csv_text: "",
+      csv_chunk_count: chunkCount,
+      file_name: fileName || "dashboard2.csv",
+      updated_at: updatedAt,
     },
     { merge: true }
   );

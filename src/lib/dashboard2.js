@@ -66,6 +66,13 @@ function normalizeRow(r, source) {
   const hubType = asTrimmedString(r.hub_type ?? r.HubType);
   const connectOrBaggingType = asTrimmedString(r.connect_or_bagging_type ?? r.ConnectOrBaggingType);
   const movementType = asTrimmedString(r.Movement_type ?? r.movement_type ?? r.MovementType);
+  const exceptionType = asTrimmedString(r.exception_type ?? r["exception_type"] ?? r.ExceptionType ?? r["Exception Type"]);
+  const exceptionStatus = asTrimmedString(
+    r.exception_status ?? r["exception_status"] ?? r.ExceptionStatus ?? r["Exception Status"]
+  );
+  const exceptionRemarks = asTrimmedString(
+    r.exception_remarks ?? r["exception_remarks"] ?? r.ExceptionRemarks ?? r["Exception Remarks"]
+  );
 
   const effectiveDate = scanDate ?? orderDate ?? pickedDate;
 
@@ -93,6 +100,9 @@ function normalizeRow(r, source) {
     hubType,
     connectOrBaggingType,
     movementType,
+    exceptionType,
+    exceptionStatus,
+    exceptionRemarks,
     __raw: r,
   };
 

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme.jsx";
 import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
+import Papa from "papaparse";
 import { Doughnut, Bar, Line } from "react-chartjs-2";
 import {
   classifyOpenLost,
@@ -13,6 +14,8 @@ import {
   sumPrice,
   uniqCountByKey,
 } from "./lib/dashboard2.js";
+import { isCloudSnapshotConfigured } from "./lib/firebaseClient.js";
+import { loadDashboard2Snapshot, saveDashboard2Snapshot } from "./lib/cloudSnapshot.js";
 
 function formatInrCr(n) {
   const v = Number(n ?? 0);
@@ -47,6 +50,8 @@ function stripExportRows(rows) {
     month: r.month ?? "",
     issue_type: r.issueType,
     issue_category: r.issueCategory,
+    exception_type: r.exceptionType ?? "",
+    exception_status: r.exceptionStatus ?? "",
     node: r.node,
     node_type: r.nodeType,
     pod: r.pod,
@@ -60,7 +65,43 @@ function stripExportRows(rows) {
     hub_type: r.hubType,
     connect_or_bagging_type: r.connectOrBaggingType,
     movement_type: r.movementType,
+    exception_remarks: r.exceptionRemarks ?? "",
   }));
+}
+
+function parseSnapshotRows(rows) {
+  return rows.map((r) => {
+    const scanDate = r.scan_date ? new Date(r.scan_date) : null;
+    return {
+      __source: String(r.source ?? "").trim() || "Cloud",
+      awb: String(r.awb ?? "").trim(),
+      orderStatus: String(r.order_status ?? "").trim(),
+      price: Number(r.price ?? 0) || 0,
+      scanDate: scanDate && Number.isFinite(scanDate.getTime()) ? scanDate : null,
+      orderDate: null,
+      pickedDate: null,
+      month: String(r.month ?? "").trim() || null,
+      issueType: String(r.issue_type ?? "").trim(),
+      issueCategory: String(r.issue_category ?? "").trim(),
+      exceptionType: String(r.exception_type ?? "").trim(),
+      exceptionStatus: String(r.exception_status ?? "").trim(),
+      exceptionRemarks: String(r.exception_remarks ?? "").trim(),
+      node: String(r.node ?? "").trim(),
+      nodeType: String(r.node_type ?? "").trim(),
+      pod: String(r.pod ?? "").trim(),
+      podZone: String(r.pod_zone ?? "").trim(),
+      stateHead: String(r.state_head ?? "").trim(),
+      client: String(r.client ?? "").trim(),
+      paymentMode: String(r.payment_mode ?? "").trim(),
+      hub: String(r.hub ?? "").trim(),
+      szm: String(r.szm ?? "").trim(),
+      state: String(r.state ?? "").trim(),
+      hubType: String(r.hub_type ?? "").trim(),
+      connectOrBaggingType: String(r.connect_or_bagging_type ?? "").trim(),
+      movementType: String(r.movement_type ?? "").trim(),
+      __raw: r,
+    };
+  });
 }
 
 function CardKpi({ label, value, sub }) {
@@ -175,6 +216,8 @@ export function Dashboard2Tab({ dashCsvName }) {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState(null);
   const [rows, setRows] = useState([]);
+  const [cloudStatus, setCloudStatus] = useState(null);
+  const [view, setView] = useState("overview");
 
   const [applied, setApplied] = useState({
     source: [],
@@ -185,6 +228,8 @@ export function Dashboard2Tab({ dashCsvName }) {
     month: [],
     issueType: [],
     issueCategory: [],
+    exceptionType: [],
+    exceptionStatus: [],
     client: [],
     paymentMode: [],
   });
@@ -202,6 +247,8 @@ export function Dashboard2Tab({ dashCsvName }) {
         month: [],
         issueType: [],
         issueCategory: [],
+        exceptionType: [],
+        exceptionStatus: [],
         client: [],
         paymentMode: [],
       };
@@ -215,6 +262,8 @@ export function Dashboard2Tab({ dashCsvName }) {
       month: uniqOptions(rows, "month"),
       issueType: uniqOptions(rows, "issueType"),
       issueCategory: uniqOptions(rows, "issueCategory"),
+      exceptionType: uniqOptions(rows, "exceptionType"),
+      exceptionStatus: uniqOptions(rows, "exceptionStatus"),
       client: uniqOptions(rows, "client"),
       paymentMode: uniqOptions(rows, "paymentMode"),
     };
@@ -233,11 +282,17 @@ export function Dashboard2Tab({ dashCsvName }) {
       if (!has(a.month, r.month ?? "")) return false;
       if (!has(a.issueType, r.issueType)) return false;
       if (!has(a.issueCategory, r.issueCategory)) return false;
+      if (!has(a.exceptionType, r.exceptionType ?? "")) return false;
+      if (!has(a.exceptionStatus, r.exceptionStatus ?? "")) return false;
       if (!has(a.client, r.client)) return false;
       if (!has(a.paymentMode, r.paymentMode)) return false;
       return true;
     });
   }, [rows, applied]);
+
+  const lossReportedRows = useMemo(() => {
+    return filtered.filter((r) => String(r.exceptionType ?? "").trim().toLowerCase() === "loss reported");
+  }, [filtered]);
 
   const kpis = useMemo(() => {
     const totalAwb = uniqCountByKey(filtered, "awb");
@@ -279,6 +334,10 @@ export function Dashboard2Tab({ dashCsvName }) {
     };
   }, [filtered]);
 
+  const exceptionTypeAgg = useMemo(() => groupAgg(lossReportedRows, "exceptionType", 8), [lossReportedRows]);
+  const exceptionStatusAgg = useMemo(() => groupAgg(lossReportedRows, "exceptionStatus", 8), [lossReportedRows]);
+  const exceptionNodeAgg = useMemo(() => groupAgg(lossReportedRows, "node", 15), [lossReportedRows]);
+
   const onPick = useCallback(async (file) => {
     setError("");
     if (!file) return;
@@ -289,6 +348,7 @@ export function Dashboard2Tab({ dashCsvName }) {
       const parsed = parsePanIndiaWorkbook(ab);
       setMeta(parsed);
       setRows(parsed.rows);
+      setCloudStatus(null);
       const nextApplied = {
         source: [],
         podZone: [],
@@ -298,13 +358,74 @@ export function Dashboard2Tab({ dashCsvName }) {
         month: [],
         issueType: [],
         issueCategory: [],
+        exceptionType: [],
+        exceptionStatus: [],
+        client: [],
+        paymentMode: [],
+      };
+      setApplied(nextApplied);
+      setDraft(nextApplied);
+
+      if (isCloudSnapshotConfigured()) {
+        try {
+          const exportRows = stripExportRows(parsed.rows);
+          const csvText = Papa.unparse(exportRows, { quotes: false });
+          await saveDashboard2Snapshot(csvText, file.name);
+          setCloudStatus({ kind: "ok", text: "Synced to cloud. Everyone will see this workbook." });
+        } catch (e) {
+          setCloudStatus({
+            kind: "warn",
+            text:
+              e instanceof Error
+                ? `Saved locally, but cloud sync failed: ${e.message}`
+                : "Saved locally, but cloud sync failed.",
+          });
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not parse workbook.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadFromCloud = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const snap = await loadDashboard2Snapshot();
+      if (!snap) {
+        setCloudStatus({ kind: "warn", text: "No Dashboard 2.0 snapshot found in cloud yet." });
+        return;
+      }
+      const res = Papa.parse(snap.csv_text, { header: true, skipEmptyLines: true });
+      if (res.errors?.length) throw new Error(res.errors[0].message || "Could not parse cloud CSV.");
+      const parsedRows = parseSnapshotRows(res.data ?? []);
+      setRows(parsedRows);
+      setMeta({ sheetNames: ["Cloud snapshot"], counts: { total: parsedRows.length }, sheetCounts: { Cloud: parsedRows.length } });
+      setFileName(snap.file_name || "dashboard2.csv");
+      setCloudStatus({ kind: "ok", text: `Loaded from cloud (${new Date(snap.updated_at).toLocaleString()}).` });
+      const nextApplied = {
+        source: [],
+        podZone: [],
+        pod: [],
+        stateHead: [],
+        nodeType: [],
+        month: [],
+        issueType: [],
+        issueCategory: [],
+        exceptionType: [],
+        exceptionStatus: [],
         client: [],
         paymentMode: [],
       };
       setApplied(nextApplied);
       setDraft(nextApplied);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not parse workbook.");
+      setCloudStatus({
+        kind: "warn",
+        text: e instanceof Error ? `Cloud load failed: ${e.message}` : "Cloud load failed.",
+      });
     } finally {
       setLoading(false);
     }
@@ -384,6 +505,16 @@ export function Dashboard2Tab({ dashCsvName }) {
             >
               {loading ? "Parsing…" : rows.length ? "Upload new workbook" : "Upload workbook"}
             </button>
+            {isCloudSnapshotConfigured() ? (
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-btn transition-all hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-900/60"
+                onClick={loadFromCloud}
+                disabled={loading}
+              >
+                Load from cloud
+              </button>
+            ) : null}
             {rows.length ? (
               <button
                 type="button"
@@ -403,6 +534,18 @@ export function Dashboard2Tab({ dashCsvName }) {
         }
       />
 
+      {cloudStatus ? (
+        <div
+          className={`surface-card border-l-4 ${
+            cloudStatus.kind === "ok"
+              ? "border-emerald-500/70"
+              : "border-amber-500/70"
+          }`}
+        >
+          <p className="text-sm text-slate-700 dark:text-slate-200">{cloudStatus.text}</p>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="surface-card border-l-4 border-red-500">
           <p className="text-sm font-semibold text-red-700 dark:text-red-300">{error}</p>
@@ -412,14 +555,42 @@ export function Dashboard2Tab({ dashCsvName }) {
       {meta ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <CardKpi label="Workbook" value={fileName || "—"} sub={`${meta.sheetNames.length} sheets detected`} />
-          <CardKpi label="Combined rows" value={formatInt(meta.counts.total)} sub="Forward + BRSNR + Bagging Connection" />
-          <CardKpi label="Forward rows" value={formatInt(meta.counts.Forward)} />
-          <CardKpi label="BRSNR + Bagging" value={formatInt(meta.counts.BRSNR + meta.counts.Bagging_Connection)} />
+          <CardKpi label="Combined rows" value={formatInt(meta.counts.total)} sub="All sheets merged" />
+          <CardKpi label="Sources" value={formatInt(Object.keys(meta.sheetCounts ?? {}).length)} sub="Use Source filter" />
+          <CardKpi label="Loss reported" value={formatInt(lossReportedRows.length)} sub="Rows with exception_type=Loss Reported" />
         </div>
       ) : null}
 
       {rows.length ? (
         <div className="surface-card">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Views</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Switch between overview and exception insights without losing filters.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200/80 bg-white/80 p-1 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/50">
+              {[
+                ["overview", "Overview"],
+                ["exceptions", "Loss reported"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setView(id)}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.98] ${
+                    view === id
+                      ? "bg-slate-900 text-white shadow-btn dark:bg-white dark:text-slate-950"
+                      : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Filters</h3>
@@ -529,6 +700,22 @@ export function Dashboard2Tab({ dashCsvName }) {
               setSelected={(v) => setDraft((p) => ({ ...p, issueType: v }))}
               applied={applied.issueType}
               onApply={(next) => setApplied((p) => ({ ...p, issueType: next }))}
+            />
+            <MultiSelectDropdownFilter
+              label="Exception type"
+              options={options.exceptionType}
+              selected={draft.exceptionType}
+              setSelected={(v) => setDraft((p) => ({ ...p, exceptionType: v }))}
+              applied={applied.exceptionType}
+              onApply={(next) => setApplied((p) => ({ ...p, exceptionType: next }))}
+            />
+            <MultiSelectDropdownFilter
+              label="Exception status"
+              options={options.exceptionStatus}
+              selected={draft.exceptionStatus}
+              setSelected={(v) => setDraft((p) => ({ ...p, exceptionStatus: v }))}
+              applied={applied.exceptionStatus}
+              onApply={(next) => setApplied((p) => ({ ...p, exceptionStatus: next }))}
             />
           </div>
         </div>
@@ -796,6 +983,124 @@ export function Dashboard2Tab({ dashCsvName }) {
                 <li className="text-xs text-slate-500 dark:text-slate-400">Not enough data for this view.</li>
               )}
             </ol>
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length && view === "exceptions" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="surface-card border-l-4 border-rose-500/70 dark:border-rose-400/60">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Loss reported — Exception status</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Approved / Rejected / others</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-btn transition-all hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-900/60"
+                onClick={() =>
+                  downloadCsv(
+                    dashCsvName("dashboard2-loss-reported-status"),
+                    exceptionStatusAgg.map((o) => ({ exception_status: o.key, total: o.total, open: o.open, lost: o.lost, price: o.totalValue })),
+                    ["exception_status", "total", "open", "lost", "price"]
+                  )
+                }
+              >
+                Export
+              </button>
+            </div>
+            <div className="h-72 min-h-[16rem]">
+              <Bar
+                options={barOptions}
+                data={{
+                  labels: exceptionStatusAgg.map((o) => o.key),
+                  datasets: [
+                    {
+                      label: "AWBs",
+                      data: exceptionStatusAgg.map((o) => o.total),
+                      backgroundColor: isDark ? "rgba(244, 63, 94, 0.9)" : "rgba(220, 38, 38, 0.92)",
+                      borderRadius: 8,
+                    },
+                  ],
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="surface-card border-l-4 border-violet-500/70 dark:border-violet-400/60">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Loss reported — Nodes</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Top nodes by loss reported volume</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-btn transition-all hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-900/60"
+                onClick={() =>
+                  downloadCsv(
+                    dashCsvName("dashboard2-loss-reported-nodes"),
+                    exceptionNodeAgg.map((o) => ({ node: o.key, total: o.total, open: o.open, lost: o.lost, price: o.totalValue })),
+                    ["node", "total", "open", "lost", "price"]
+                  )
+                }
+              >
+                Export
+              </button>
+            </div>
+            <div className="h-72 min-h-[16rem]">
+              <Bar
+                options={barOptions}
+                data={{
+                  labels: exceptionNodeAgg.map((o) => o.key),
+                  datasets: [
+                    {
+                      label: "AWBs",
+                      data: exceptionNodeAgg.map((o) => o.total),
+                      backgroundColor: isDark ? "rgba(168, 85, 247, 0.9)" : "rgba(124, 58, 237, 0.92)",
+                      borderRadius: 8,
+                    },
+                  ],
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="surface-card lg:col-span-2">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Loss reported — Exception type</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Should be “Loss Reported” (sanity check)</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-btn transition-all hover:bg-slate-50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200 dark:hover:bg-slate-900/60"
+                onClick={() =>
+                  downloadCsv(
+                    dashCsvName("dashboard2-loss-reported-exception-type"),
+                    exceptionTypeAgg.map((o) => ({ exception_type: o.key, total: o.total, open: o.open, lost: o.lost, price: o.totalValue })),
+                    ["exception_type", "total", "open", "lost", "price"]
+                  )
+                }
+              >
+                Export
+              </button>
+            </div>
+            <div className="h-64 min-h-[14rem]">
+              <Bar
+                options={barOptions}
+                data={{
+                  labels: exceptionTypeAgg.map((o) => o.key),
+                  datasets: [
+                    {
+                      label: "AWBs",
+                      data: exceptionTypeAgg.map((o) => o.total),
+                      backgroundColor: isDark ? "rgba(56, 189, 248, 0.9)" : "rgba(2, 132, 199, 0.92)",
+                      borderRadius: 8,
+                    },
+                  ],
+                }}
+              />
+            </div>
           </div>
         </div>
       ) : null}
