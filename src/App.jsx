@@ -74,6 +74,7 @@ import {
 } from "./lib/uploadDiff.js";
 import { InsightsBar } from "./InsightsBar.jsx";
 import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
+import { Dashboard2Tab } from "./Dashboard2Tab.jsx";
 
 ChartJS.register(
   CategoryScale,
@@ -726,7 +727,7 @@ export default function App() {
   const [hotspotsExpandedFwd, setHotspotsExpandedFwd] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     const v = readStoredUi()?.activeTab;
-    return v === "dashboard" || v === "camera" || v === "data" ? v : "dashboard";
+    return v === "dashboard" || v === "dashboard2" || v === "camera" || v === "data" ? v : "dashboard";
   });
   const [cameraStatusRows, setCameraStatusRows] = useState([]);
   const [cameraStatusFileName, setCameraStatusFileName] = useState("");
@@ -825,7 +826,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "dashboard" || tab === "camera" || tab === "data") {
+    if (tab === "dashboard" || tab === "dashboard2" || tab === "camera" || tab === "data") {
       setActiveTab(tab);
     }
     const manifest = params.get("manifest");
@@ -2301,7 +2302,7 @@ export default function App() {
               role="tablist"
               aria-label="Main views"
             >
-              <div className="grid min-w-0 flex-1 grid-cols-3 gap-1">
+              <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
                 <button
                   type="button"
                   role="tab"
@@ -2314,6 +2315,19 @@ export default function App() {
                   }`}
                 >
                   Dashboard
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "dashboard2"}
+                  onClick={() => setActiveTab("dashboard2")}
+                  className={`rounded-lg px-1.5 py-2.5 text-center text-[11px] font-semibold transition-all duration-300 ease-sfx-smooth motion-safe:active:scale-[0.98] xs:px-2 sm:px-3.5 sm:py-2 sm:text-sm ${
+                    activeTab === "dashboard2"
+                      ? "bg-white text-sfx shadow-md ring-1 ring-sfx/20 motion-safe:scale-[1.01] dark:bg-gradient-to-b dark:from-sfx dark:to-sfx-deep dark:text-white dark:shadow-btn-dark dark:ring-sfx/40"
+                      : "text-slate-600 hover:text-sfx motion-safe:hover:bg-white/70 motion-safe:hover:shadow-sm dark:text-slate-400 dark:hover:text-sfx-cta dark:motion-safe:hover:bg-slate-800/80"
+                  }`}
+                >
+                  Dashboard 2.0
                 </button>
                 <button
                   type="button"
@@ -2532,6 +2546,8 @@ export default function App() {
             onDownloadDetailed={handleCameraDetailDownload}
             onDownloadFiltered={handleCameraFilteredDownload}
           />
+        ) : activeTab === "dashboard2" ? (
+          <Dashboard2Tab dashCsvName={dashCsvName} />
         ) : activeTab === "dashboard" ? (
           <>
             {!annotated.length ? (

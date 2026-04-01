@@ -60,9 +60,44 @@ To sync one CSV across **all users** over the internet:
 | `npm run dev`    | Start dev server with HMR      |
 | `npm run build`  | Production build → `dist/`     |
 | `npm run preview`| Serve the production build     |
+| `npm run mobile:sync` | Build web app + sync Android project |
+| `npm run mobile:open:android` | Open Android Studio project |
+| `npm run mobile:run:android` | Build web app + run on connected Android device |
 | `npm run check:cloud` | Verify `VITE_FIREBASE_*` in `.env`      |
 | `npm run firebase:login` | Firebase CLI login (one-time)       |
 | `npm run firebase:deploy:rules` | Deploy `firestore.rules` (set `.firebaserc`) |
+
+## Android app (personal / local use)
+
+This project is configured with [Capacitor](https://capacitorjs.com/) and includes an `android/` native project.
+
+### Build and open Android project
+
+```bash
+npm run mobile:sync
+npm run mobile:open:android
+```
+
+Then in Android Studio:
+
+1. Connect your Android phone (USB debugging enabled), or start an emulator.
+2. Click **Run** to install and launch the app.
+
+### Generate APK (no Play Store needed)
+
+In Android Studio: **Build → Build Bundle(s) / APK(s) → Build APK(s)**  
+or from terminal:
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+Debug APK output:
+
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+Install this APK directly on your phone for private use.
 
 ## CSV columns
 

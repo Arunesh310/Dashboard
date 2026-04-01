@@ -7,21 +7,28 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "mobile:sync": "npm run build && npx cap sync android",
+    "mobile:open:android": "npx cap open android",
+    "mobile:run:android": "npm run build && npx cap run android",
     "check:cloud": "node scripts/check-cloud.mjs",
     "migrate:camera": "node scripts/apply-camera-columns.mjs",
     "firebase:login": "firebase login",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
     "chart.js": "^4.4.1",
     "firebase": "^12.11.0",
     "html2pdf.js": "^0.14.0",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "firebase-tools": "^15.11.0",
