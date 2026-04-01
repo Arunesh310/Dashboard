@@ -108,38 +108,23 @@ function sheetToJson(workbook, name) {
 export function parsePanIndiaWorkbook(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: "array", cellDates: true, dense: true });
   const names = wb.SheetNames ?? [];
-  const lower = new Map(names.map((n) => [String(n).toLowerCase(), n]));
-
-  const pick = (...candidates) => {
-    for (const c of candidates) {
-      const key = String(c).toLowerCase();
-      if (lower.has(key)) return lower.get(key);
+  const sheetCounts = {};
+  const combined = [];
+  for (const sheetName of names) {
+    const sheetRows = sheetToJson(wb, sheetName);
+    const normalized = sheetRows.map((r) => normalizeRow(r, sheetName));
+    sheetCounts[sheetName] = normalized.length;
+    for (const row of normalized) {
+      if (row.awb || row.node || row.hub) combined.push(row);
     }
-    return null;
-  };
-
-  const forwardName = pick("forward", "fwd", "forward_20260401_072430");
-  const brsnrName = pick("brsnr", "brsnr_20260401_072430");
-  const bagConnName = pick("bagging_connection", "bagging connection", "bagging", "bagging_connection_20260401_072430");
-
-  const forwardRows = forwardName ? sheetToJson(wb, forwardName) : [];
-  const brsnrRows = brsnrName ? sheetToJson(wb, brsnrName) : [];
-  const bagConnRows = bagConnName ? sheetToJson(wb, bagConnName) : [];
-
-  const normForward = forwardRows.map((r) => normalizeRow(r, "Forward"));
-  const normBrsnr = brsnrRows.map((r) => normalizeRow(r, "BRSNR"));
-  const normBagConn = bagConnRows.map((r) => normalizeRow(r, "Bagging_Connection"));
-
-  const combined = [...normForward, ...normBrsnr, ...normBagConn].filter((r) => r.awb || r.node || r.hub);
+  }
 
   return {
     sheetNames: names,
     counts: {
-      Forward: normForward.length,
-      BRSNR: normBrsnr.length,
-      Bagging_Connection: normBagConn.length,
       total: combined.length,
     },
+    sheetCounts,
     rows: combined,
   };
 }
@@ -200,5 +185,28 @@ export function monthAgg(rows) {
     else o.open += 1;
   }
   return [...m.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
+}
+
+export function groupAggWithRates(rows, dimKey, limit = 15, minTotal = 25) {
+  const base = groupAgg(rows, dimKey, Number.POSITIVE_INFINITY);
+  const enriched = base
+    .map((o) => {
+      const lostRate = o.total > 0 ? o.lost / o.total : 0;
+      const avgPrice = o.total > 0 ? o.totalValue / o.total : 0;
+      return { ...o, lostRate, avgPrice };
+    })
+    .filter((o) => o.total >= minTotal);
+  enriched.sort((a, b) => b.lostRate - a.lostRate || b.total - a.total);
+  return enriched.slice(0, limit);
+}
+
+export function stackedTop(rows, dimKey, limit = 10) {
+  const agg = groupAgg(rows, dimKey, limit);
+  return {
+    labels: agg.map((o) => o.key),
+    open: agg.map((o) => o.open),
+    lost: agg.map((o) => o.lost),
+    total: agg.map((o) => o.total),
+  };
 }
 

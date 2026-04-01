@@ -6,8 +6,10 @@ import { Doughnut, Bar, Line } from "react-chartjs-2";
 import {
   classifyOpenLost,
   groupAgg,
+  groupAggWithRates,
   monthAgg,
   parsePanIndiaWorkbook,
+  stackedTop,
   sumPrice,
   uniqCountByKey,
 } from "./lib/dashboard2.js";
@@ -71,6 +73,27 @@ function CardKpi({ label, value, sub }) {
   );
 }
 
+function CardKpiGlow({ label, value, sub, tint = "sky" }) {
+  const tintClass =
+    tint === "violet"
+      ? "from-violet-500/18 via-transparent to-sfx/10 dark:from-violet-400/18 dark:to-sfx-cta/10"
+      : tint === "rose"
+        ? "from-rose-500/18 via-transparent to-sfx/10 dark:from-rose-400/18 dark:to-sfx-cta/10"
+        : tint === "emerald"
+          ? "from-emerald-500/18 via-transparent to-sfx/10 dark:from-emerald-400/18 dark:to-sfx-cta/10"
+          : "from-sky-500/18 via-transparent to-sfx/10 dark:from-sky-400/18 dark:to-sfx-cta/10";
+  return (
+    <div className="surface-card relative overflow-hidden border border-slate-200/70 dark:border-slate-700/60">
+      <div className={`absolute inset-0 bg-gradient-to-br ${tintClass}`} />
+      <div className="relative p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="mt-1 text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+        {sub ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{sub}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function FuturisticHeader({ title, subtitle, right }) {
   return (
     <div className="surface-card relative overflow-hidden border border-slate-200/80 dark:border-slate-700/60">
@@ -109,7 +132,7 @@ function PivotTable({ title, rows, dimLabel }) {
               <th className="px-2 py-2 sm:px-3">Open</th>
               <th className="px-2 py-2 sm:px-3">Lost</th>
               <th className="px-2 py-2 sm:px-3">Total</th>
-              <th className="px-2 py-2 sm:px-3">Debit (₹)</th>
+              <th className="px-2 py-2 sm:px-3">Price (₹)</th>
             </tr>
           </thead>
           <tbody>
@@ -233,7 +256,9 @@ export function Dashboard2Tab({ dashCsvName }) {
         openValue += r.price || 0;
       }
     }
-    return { totalAwb, totalValue, open, lost, openValue, lostValue };
+    const lostRate = open + lost > 0 ? lost / (open + lost) : 0;
+    const avgPrice = open + lost > 0 ? totalValue / (open + lost) : 0;
+    return { totalAwb, totalValue, open, lost, openValue, lostValue, lostRate, avgPrice };
   }, [filtered]);
 
   const remarkAgg = useMemo(() => groupAgg(filtered, "issueType", 12), [filtered]);
@@ -244,6 +269,15 @@ export function Dashboard2Tab({ dashCsvName }) {
   const nodeAgg = useMemo(() => groupAgg(filtered, "node", 20), [filtered]);
 
   const months = useMemo(() => monthAgg(filtered), [filtered]);
+  const stackedRemarks = useMemo(() => stackedTop(filtered, "issueType", 10), [filtered]);
+  const stackedZones = useMemo(() => stackedTop(filtered, "podZone", 8), [filtered]);
+  const insights = useMemo(() => {
+    return {
+      topLostZones: groupAggWithRates(filtered, "podZone", 5, 100),
+      topLostStateHeads: groupAggWithRates(filtered, "stateHead", 5, 100),
+      topLostNodes: groupAggWithRates(filtered, "node", 5, 150),
+    };
+  }, [filtered]);
 
   const onPick = useCallback(async (file) => {
     setError("");
@@ -332,7 +366,7 @@ export function Dashboard2Tab({ dashCsvName }) {
     <div className="space-y-5">
       <FuturisticHeader
         title="Dashboard 2.0 — Pan India (combined)"
-        subtitle="Upload one Excel workbook containing Forward, BRSNR, and Bagging Connection sheets. Open/Lost is based on Order Status. Debit Value is Price."
+        subtitle="Upload one workbook (.xlsx or .xlsb). All sheets are combined automatically. Open vs Lost is based on Order Status. Value is Price."
         right={
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -502,10 +536,10 @@ export function Dashboard2Tab({ dashCsvName }) {
 
       {rows.length ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <CardKpi label="Total AWBs" value={formatInt(kpis.totalAwb)} sub={`Debit: ${formatInrCr(kpis.totalValue)}`} />
-          <CardKpi label="Open AWBs" value={formatInt(kpis.open)} sub={`Debit: ${formatInrCr(kpis.openValue)}`} />
-          <CardKpi label="Lost AWBs" value={formatInt(kpis.lost)} sub={`Debit: ${formatInrCr(kpis.lostValue)}`} />
-          <CardKpi label="Filters applied" value={formatInt(filtered.length)} sub="Rows after filtering" />
+          <CardKpiGlow label="Total AWBs" value={formatInt(kpis.totalAwb)} sub={`Total Price: ${formatInrCr(kpis.totalValue)}`} tint="sky" />
+          <CardKpiGlow label="Open AWBs" value={formatInt(kpis.open)} sub={`Open Price: ${formatInrCr(kpis.openValue)}`} tint="emerald" />
+          <CardKpiGlow label="Lost AWBs" value={formatInt(kpis.lost)} sub={`Lost Price: ${formatInrCr(kpis.lostValue)}`} tint="rose" />
+          <CardKpiGlow label="Loss rate" value={`${(kpis.lostRate * 100).toFixed(1)}%`} sub={`Avg Price: ${formatInrCr(kpis.avgPrice)}`} tint="violet" />
         </div>
       ) : null}
 
@@ -514,8 +548,8 @@ export function Dashboard2Tab({ dashCsvName }) {
           <div className="surface-card">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Remarks breakdown (Issue Type)</h3>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Top issue types by AWB volume</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Remarks breakdown</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Open vs Lost split for top Issue Types</p>
               </div>
               <button
                 type="button"
@@ -523,8 +557,8 @@ export function Dashboard2Tab({ dashCsvName }) {
                 onClick={() =>
                   downloadCsv(
                     dashCsvName("dashboard2-remarks-breakdown"),
-                    remarkAgg.map((o) => ({ issue_type: o.key, total: o.total, open: o.open, lost: o.lost, debit: o.totalValue })),
-                    ["issue_type", "total", "open", "lost", "debit"]
+                    remarkAgg.map((o) => ({ issue_type: o.key, total: o.total, open: o.open, lost: o.lost, price: o.totalValue })),
+                    ["issue_type", "total", "open", "lost", "price"]
                   )
                 }
               >
@@ -533,14 +567,28 @@ export function Dashboard2Tab({ dashCsvName }) {
             </div>
             <div className="h-72 min-h-[16rem]">
               <Bar
-                options={barOptions}
+                options={{
+                  ...barOptions,
+                  scales: {
+                    ...barOptions.scales,
+                    x: { ...barOptions.scales.x, stacked: true },
+                    y: { ...barOptions.scales.y, stacked: true },
+                  },
+                  plugins: { ...barOptions.plugins, legend: { display: true, position: "bottom" } },
+                }}
                 data={{
-                  labels: remarkAgg.map((o) => o.key),
+                  labels: stackedRemarks.labels,
                   datasets: [
                     {
-                      label: "AWBs",
-                      data: remarkAgg.map((o) => o.total),
-                      backgroundColor: isDark ? "rgba(56, 189, 248, 0.9)" : "rgba(2, 132, 199, 0.9)",
+                      label: "Open",
+                      data: stackedRemarks.open,
+                      backgroundColor: isDark ? "rgba(34, 197, 94, 0.9)" : "rgba(16, 185, 129, 0.9)",
+                      borderRadius: 8,
+                    },
+                    {
+                      label: "Lost",
+                      data: stackedRemarks.lost,
+                      backgroundColor: isDark ? "rgba(244, 63, 94, 0.9)" : "rgba(220, 38, 38, 0.92)",
                       borderRadius: 8,
                     },
                   ],
@@ -552,7 +600,7 @@ export function Dashboard2Tab({ dashCsvName }) {
           <div className="surface-card">
             <div className="mb-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Monthly trend</h3>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">AWB count + Debit value over time</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">AWB count + Price over time</p>
             </div>
             <div className="h-72 min-h-[16rem]">
               <Line
@@ -569,7 +617,7 @@ export function Dashboard2Tab({ dashCsvName }) {
                       tension: 0.35,
                     },
                     {
-                      label: "Debit (₹)",
+                      label: "Price (₹)",
                       data: months.map((m) => Math.round(m.value)),
                       borderColor: isDark ? "rgb(168 85 247)" : "rgb(124 58 237)",
                       backgroundColor: isDark ? "rgba(168, 85, 247, 0.12)" : "rgba(124, 58, 237, 0.10)",
@@ -644,6 +692,110 @@ export function Dashboard2Tab({ dashCsvName }) {
                 }}
               />
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length ? (
+        <div className="surface-card">
+          <div className="mb-3">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Open vs Lost by Zone (top)</h3>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Where losses are concentrating</p>
+          </div>
+          <div className="h-72 min-h-[16rem]">
+            <Bar
+              options={{
+                ...barOptions,
+                scales: {
+                  ...barOptions.scales,
+                  x: { ...barOptions.scales.x, stacked: true },
+                  y: { ...barOptions.scales.y, stacked: true },
+                },
+                plugins: { ...barOptions.plugins, legend: { display: true, position: "bottom" } },
+              }}
+              data={{
+                labels: stackedZones.labels,
+                datasets: [
+                  {
+                    label: "Open",
+                    data: stackedZones.open,
+                    backgroundColor: isDark ? "rgba(34, 197, 94, 0.9)" : "rgba(16, 185, 129, 0.9)",
+                    borderRadius: 8,
+                  },
+                  {
+                    label: "Lost",
+                    data: stackedZones.lost,
+                    backgroundColor: isDark ? "rgba(244, 63, 94, 0.9)" : "rgba(220, 38, 38, 0.92)",
+                    borderRadius: 8,
+                  },
+                ],
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="surface-card border-l-4 border-rose-500/70 dark:border-rose-400/60">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Top loss-rate zones</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Min 100 rows, sorted by lost %</p>
+            <ol className="mt-3 space-y-2">
+              {insights.topLostZones.length ? (
+                insights.topLostZones.map((o, i) => (
+                  <li key={`z-${o.key}`} className="surface-muted flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="min-w-0 truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {i + 1}. {o.key}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700 ring-1 ring-rose-200/80 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-400/35">
+                      {(o.lostRate * 100).toFixed(1)}%
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-slate-500 dark:text-slate-400">Not enough data for this view.</li>
+              )}
+            </ol>
+          </div>
+          <div className="surface-card border-l-4 border-violet-500/70 dark:border-violet-400/60">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Top loss-rate state heads</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Min 100 rows, sorted by lost %</p>
+            <ol className="mt-3 space-y-2">
+              {insights.topLostStateHeads.length ? (
+                insights.topLostStateHeads.map((o, i) => (
+                  <li key={`sh-${o.key}`} className="surface-muted flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="min-w-0 truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {i + 1}. {o.key}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700 ring-1 ring-violet-200/80 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-400/35">
+                      {(o.lostRate * 100).toFixed(1)}%
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-slate-500 dark:text-slate-400">Not enough data for this view.</li>
+              )}
+            </ol>
+          </div>
+          <div className="surface-card border-l-4 border-sky-500/70 dark:border-sky-400/60">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Top loss-rate nodes</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Min 150 rows, sorted by lost %</p>
+            <ol className="mt-3 space-y-2">
+              {insights.topLostNodes.length ? (
+                insights.topLostNodes.map((o, i) => (
+                  <li key={`n-${o.key}`} className="surface-muted flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="min-w-0 truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {i + 1}. {o.key}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 ring-1 ring-sky-200/80 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/35">
+                      {(o.lostRate * 100).toFixed(1)}%
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-slate-500 dark:text-slate-400">Not enough data for this view.</li>
+              )}
+            </ol>
           </div>
         </div>
       ) : null}
