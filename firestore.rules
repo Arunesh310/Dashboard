@@ -13,5 +13,12 @@ service cloud.firestore {
     match /dashboard_snapshot_chunks/{docId} {
       allow read, write: if isShadowfaxUser();
     }
+
+    match /dashboard2_snapshot/{docId} {
+      allow read, write: if isShadowfaxUser();
+    }
+    match /dashboard2_snapshot_chunks/{docId} {
+      allow read, write: if isShadowfaxUser();
+    }
   }
 }

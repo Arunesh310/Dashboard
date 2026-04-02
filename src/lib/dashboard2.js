@@ -74,6 +74,51 @@ function normalizeRow(r, source) {
     r.exception_remarks ?? r["exception_remarks"] ?? r.ExceptionRemarks ?? r["Exception Remarks"]
   );
 
+  const mmStatus = asTrimmedString(
+    r.mm_status ??
+      r.MM_Status ??
+      r.MMStatus ??
+      r.Manifest_status ??
+      r.manifest_status ??
+      r.manifestStatus ??
+      r.Manifest_status
+  );
+  const typeField = asTrimmedString(r.Type ?? r.type ?? r.Flow ?? r.flow);
+  const manifestDestination = asTrimmedString(r.manifest_destination ?? r.Manifest_Destination ?? r.manifestDestination);
+  const mmDestination = asTrimmedString(r.mm_destination ?? r.MM_destination ?? r.mmDestination ?? r.MMD);
+  const manifestReceivedTime = asTrimmedString(r.manifest_received_time ?? r.Manifest_Received_Time ?? r.manifestReceivedTime);
+  const awbNumberException = asTrimmedString(r.awb_number_exception ?? r.Awb_number_exception ?? r.awbException);
+
+  const sourceKey = String(source || "").toLowerCase();
+  const typeKey = typeField.toLowerCase();
+  const movementKey = movementType.toLowerCase();
+  const issueTypeKey = issueType.toLowerCase();
+
+  const flow =
+    typeKey.includes("forward") || movementKey.includes("dch") || sourceKey.includes("forward")
+      ? "forward"
+      : typeKey.includes("reverse") || movementKey.includes("lmodc") || movementKey.includes("lm")
+        ? "reverse"
+        : "unknown";
+
+  const isBnc =
+    sourceKey.includes("b_n_c") ||
+    sourceKey.includes("bagging") ||
+    connectOrBaggingType.toLowerCase().includes("bagging pendency") ||
+    connectOrBaggingType.toLowerCase().includes("connection") ||
+    (!manifestDestination && !mmDestination);
+
+  const isBrsnr =
+    sourceKey.includes("brsnr") ||
+    issueTypeKey.includes("brsnr") ||
+    (manifestReceivedTime && issueTypeKey.includes("pendency"));
+
+  const isLossReported =
+    exceptionType.toLowerCase() === "loss reported" ||
+    sourceKey.includes("lost_reported") ||
+    sourceKey.includes("lost reported") ||
+    Boolean(awbNumberException);
+
   const effectiveDate = scanDate ?? orderDate ?? pickedDate;
 
   const normalized = {
@@ -100,6 +145,11 @@ function normalizeRow(r, source) {
     hubType,
     connectOrBaggingType,
     movementType,
+    mmStatus,
+    flow,
+    isBnc,
+    isBrsnr,
+    isLossReported,
     exceptionType,
     exceptionStatus,
     exceptionRemarks,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme.jsx";
 import { MultiSelectDropdownFilter } from "./MultiSelectDropdownFilter.jsx";
 import { downloadCsv, shortCount } from "./lib/csvExport.js";
@@ -50,6 +50,11 @@ function stripExportRows(rows) {
     month: r.month ?? "",
     issue_type: r.issueType,
     issue_category: r.issueCategory,
+    flow: r.flow ?? "",
+    bnc: r.isBnc ? "yes" : "no",
+    brsnr: r.isBrsnr ? "yes" : "no",
+    mm_status: r.mmStatus ?? "",
+    loss_reported: r.isLossReported ? "yes" : "no",
     exception_type: r.exceptionType ?? "",
     exception_status: r.exceptionStatus ?? "",
     node: r.node,
@@ -430,6 +435,12 @@ export function Dashboard2Tab({ dashCsvName }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isCloudSnapshotConfigured()) return;
+    if (rows.length) return;
+    loadFromCloud();
+  }, [rows.length, loadFromCloud]);
 
   const chartText = isDark ? "#cbd5e1" : "#475569";
 
