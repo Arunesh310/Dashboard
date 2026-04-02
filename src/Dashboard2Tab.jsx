@@ -295,9 +295,13 @@ export function Dashboard2Tab({ dashCsvName }) {
     });
   }, [rows, applied]);
 
+  const bncRows = useMemo(() => filtered.filter((r) => Boolean(r.isBnc)), [filtered]);
+  const brsnrRows = useMemo(() => filtered.filter((r) => Boolean(r.isBrsnr)), [filtered]);
   const lossReportedRows = useMemo(() => {
     return filtered.filter((r) => String(r.exceptionType ?? "").trim().toLowerCase() === "loss reported");
   }, [filtered]);
+  const forwardRows = useMemo(() => filtered.filter((r) => r.flow === "forward"), [filtered]);
+  const reverseRows = useMemo(() => filtered.filter((r) => r.flow === "reverse"), [filtered]);
 
   const kpis = useMemo(() => {
     const totalAwb = uniqCountByKey(filtered, "awb");
@@ -342,6 +346,19 @@ export function Dashboard2Tab({ dashCsvName }) {
   const exceptionTypeAgg = useMemo(() => groupAgg(lossReportedRows, "exceptionType", 8), [lossReportedRows]);
   const exceptionStatusAgg = useMemo(() => groupAgg(lossReportedRows, "exceptionStatus", 8), [lossReportedRows]);
   const exceptionNodeAgg = useMemo(() => groupAgg(lossReportedRows, "node", 15), [lossReportedRows]);
+
+  const bncHubAgg = useMemo(() => groupAgg(bncRows, "hub", 15), [bncRows]);
+  const bncNodeAgg = useMemo(() => groupAgg(bncRows, "node", 15), [bncRows]);
+  const brsnrNodeAgg = useMemo(() => groupAgg(brsnrRows, "node", 15), [brsnrRows]);
+  const brsnrHubAgg = useMemo(() => groupAgg(brsnrRows, "hub", 15), [brsnrRows]);
+  const flowSplitAgg = useMemo(
+    () => [
+      { key: "Forward", total: forwardRows.length, totalValue: sumPrice(forwardRows) },
+      { key: "Reverse", total: reverseRows.length, totalValue: sumPrice(reverseRows) },
+      { key: "Unknown", total: filtered.length - forwardRows.length - reverseRows.length, totalValue: sumPrice(filtered) - sumPrice(forwardRows) - sumPrice(reverseRows) },
+    ],
+    [filtered, forwardRows, reverseRows]
+  );
 
   const onPick = useCallback(async (file) => {
     setError("");
@@ -576,15 +593,18 @@ export function Dashboard2Tab({ dashCsvName }) {
         <div className="surface-card">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Views</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Dashboard 2.0 buckets</h3>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Switch between overview and exception insights without losing filters.
+                Each bucket is a focused view with its own KPIs, charts, and pivots.
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200/80 bg-white/80 p-1 shadow-inner dark:border-slate-700/70 dark:bg-slate-900/50">
               {[
                 ["overview", "Overview"],
+                ["bnc", "BNC"],
+                ["brsnr", "BRSNR"],
                 ["exceptions", "Loss reported"],
+                ["flow", "Flow"],
               ].map(([id, label]) => (
                 <button
                   key={id}
@@ -732,7 +752,7 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <CardKpiGlow label="Total AWBs" value={formatInt(kpis.totalAwb)} sub={`Total Price: ${formatInrCr(kpis.totalValue)}`} tint="sky" />
           <CardKpiGlow label="Open AWBs" value={formatInt(kpis.open)} sub={`Open Price: ${formatInrCr(kpis.openValue)}`} tint="emerald" />
@@ -741,7 +761,7 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="surface-card">
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -830,7 +850,7 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="surface-card">
             <div className="mb-3">
@@ -894,7 +914,7 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="surface-card">
           <div className="mb-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Open vs Lost by Zone (top)</h3>
@@ -933,7 +953,7 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="surface-card border-l-4 border-rose-500/70 dark:border-rose-400/60">
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Top loss-rate zones</h3>
@@ -994,6 +1014,36 @@ export function Dashboard2Tab({ dashCsvName }) {
                 <li className="text-xs text-slate-500 dark:text-slate-400">Not enough data for this view.</li>
               )}
             </ol>
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length && view === "bnc" ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <CardKpiGlow label="BNC rows" value={formatInt(bncRows.length)} sub="Bag not created or not connected" tint="rose" />
+            <CardKpiGlow label="BNC hubs" value={formatInt(new Set(bncRows.map((r) => r.hub || "")).size)} sub="Distinct hubs" tint="violet" />
+            <CardKpiGlow label="BNC nodes" value={formatInt(new Set(bncRows.map((r) => r.node || "")).size)} sub="Distinct nodes" tint="sky" />
+            <CardKpiGlow label="BNC price" value={formatInrCr(sumPrice(bncRows))} sub="Total price for BNC rows" tint="emerald" />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PivotTable title="BNC by hub (top)" rows={bncHubAgg} dimLabel="Hub" />
+            <PivotTable title="BNC by node (top)" rows={bncNodeAgg} dimLabel="Node" />
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length && view === "brsnr" ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <CardKpiGlow label="BRSNR rows" value={formatInt(brsnrRows.length)} sub="Bag received not processed" tint="rose" />
+            <CardKpiGlow label="BRSNR hubs" value={formatInt(new Set(brsnrRows.map((r) => r.hub || "")).size)} sub="Distinct hubs" tint="violet" />
+            <CardKpiGlow label="BRSNR nodes" value={formatInt(new Set(brsnrRows.map((r) => r.node || "")).size)} sub="Distinct nodes" tint="sky" />
+            <CardKpiGlow label="BRSNR price" value={formatInrCr(sumPrice(brsnrRows))} sub="Total price for BRSNR rows" tint="emerald" />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PivotTable title="BRSNR by hub (top)" rows={brsnrHubAgg} dimLabel="Hub" />
+            <PivotTable title="BRSNR by node (top)" rows={brsnrNodeAgg} dimLabel="Node" />
           </div>
         </div>
       ) : null}
@@ -1116,12 +1166,49 @@ export function Dashboard2Tab({ dashCsvName }) {
         </div>
       ) : null}
 
-      {rows.length ? (
+      {rows.length && view === "overview" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <PivotTable title="State Head wise" rows={stateHeadAgg} dimLabel="State head" />
           <PivotTable title="Top SZM" rows={szmAgg} dimLabel="SZM" />
           <div className="lg:col-span-2">
             <PivotTable title="Node wise pivot (top)" rows={nodeAgg} dimLabel="Node" />
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length && view === "flow" ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <CardKpiGlow label="Forward rows" value={formatInt(forwardRows.length)} sub={`Price: ${formatInrCr(sumPrice(forwardRows))}`} tint="sky" />
+            <CardKpiGlow label="Reverse rows" value={formatInt(reverseRows.length)} sub={`Price: ${formatInrCr(sumPrice(reverseRows))}`} tint="violet" />
+            <CardKpiGlow label="Unknown flow" value={formatInt(filtered.length - forwardRows.length - reverseRows.length)} sub="Needs mapping improvement" tint="rose" />
+            <CardKpiGlow label="Total" value={formatInt(filtered.length)} sub={`Price: ${formatInrCr(sumPrice(filtered))}`} tint="emerald" />
+          </div>
+          <div className="surface-card">
+            <div className="mb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Flow split</h3>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Forward vs Reverse volume</p>
+            </div>
+            <div className="h-64 min-h-[14rem]">
+              <Bar
+                options={barOptions}
+                data={{
+                  labels: flowSplitAgg.map((o) => o.key),
+                  datasets: [
+                    {
+                      label: "Rows",
+                      data: flowSplitAgg.map((o) => o.total),
+                      backgroundColor: [
+                        "rgba(56, 189, 248, 0.92)",
+                        "rgba(168, 85, 247, 0.92)",
+                        "rgba(100, 116, 139, 0.92)",
+                      ],
+                      borderRadius: 10,
+                    },
+                  ],
+                }}
+              />
+            </div>
           </div>
         </div>
       ) : null}
